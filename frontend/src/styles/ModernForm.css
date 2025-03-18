@@ -1,0 +1,142 @@
+/* General Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  body {
+    background-color: #f7fafc;
+  }
+  
+  /* Form container */
+  .form-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  
+  .form-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    padding: 32px;
+    transition: all 0.3s ease;
+  }
+  
+  .form-card:hover {
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  }
+  
+  .form-header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  
+  .logo {
+    width: 80px;
+    margin-bottom: 12px;
+  }
+  
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2d3748;
+  }
+  
+  .form-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .input-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .input-field label {
+    font-size: 14px;
+    color: #4a5568;
+  }
+  
+  .input-field input {
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  
+  .input-field input:focus {
+    border-color: #3182ce;
+    box-shadow: 0 0 0 2px rgba(50, 116, 204, 0.2);
+  }
+  
+  .submit-btn {
+    padding: 12px;
+    background-color: #3182ce;
+    color: white;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .submit-btn:hover {
+    background-color: #2b6cb0;
+  }
+  
+  .submit-btn:disabled {
+    background-color: #e2e8f0;
+    cursor: not-allowed;
+  }
+  
+  .submit-btn.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .loader {
+    border: 3px solid #ffffff;
+    border-top: 3px solid #3182ce;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+  }
+  
+  /* Loader Animation */
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+  
+  .footer-text {
+    text-align: center;
+    font-size: 14px;
+    color: #4a5568;
+  }
+  
+  .link-text {
+    color: #3182ce;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  
+  .link-text:hover {
+    text-decoration: underline;
+  }
+  

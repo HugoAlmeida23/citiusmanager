@@ -1,0 +1,211 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+Bhai+2:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+/* Font Awesome is imported in the HTML or main stylesheet */
+
+:root {
+  --menu-width: 250px;
+  --collapsed-width: 60px;
+}
+
+body {
+  font-family: "Baloo Bhai 2", "Poppins", sans-serif;
+  background: #151f29;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+aside {
+  padding: 10px;
+  position: fixed;
+  min-height: 100vh;
+  background: linear-gradient(0deg, black, #1f314b);
+  width: var(--menu-width);
+  color: white;
+  transition: width 0.3s ease;
+  box-shadow: 0px 0px 15px 0px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.collapsed aside {
+  width: var(--collapsed-width);
+}
+
+.menu-btn {
+  color: white;
+  position: absolute;
+  top: 20px;
+  right: 0;
+  padding: 8px;
+  border: none;
+  font-size: 15px;
+  aspect-ratio: 1;
+  border-radius: 0 50% 50% 0;
+  cursor: pointer;
+  transform: translateX(100%);
+  box-shadow: 2px 0px 5px 0px #1a1a1a;
+  background: #1b2b42;
+  z-index: 20;
+}
+
+.logo-wrapper {
+  display: flex;
+  overflow: hidden;
+  white-space: nowrap;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+}
+
+a {
+  text-decoration: none;
+  color: white;
+}
+
+.brand-name {
+  font-size: 20px;
+  transition: opacity 0.3s, visibility 0.3s;
+  font-weight: 600;
+  font-family: 'Poppins', sans-serif;
+}
+
+.collapsed .brand-name {
+  opacity: 0;
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  transition-delay: 0.1s;
+}
+
+.separator {
+  width: 100%;
+  height: 1px;
+  background-color: rgba(171, 171, 171, 0.21);
+  margin: 10px 0;
+}
+
+.menu-items {
+  margin-top: 15px;
+  padding-left: 0;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.menu-items a {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 10px;
+  transition: background-color 0.2s;
+}
+
+.menu-items a:hover {
+  color: #daddff;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.menu-items li {
+  position: relative;
+}
+
+.icon {
+  font-size: 16px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.item-name {
+  transition: opacity 0.3s, visibility 0.3s;
+  font-size: 15px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 300;
+}
+
+.collapsed .item-name {
+  opacity: 0;
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  display: none; /* Completely hide the element */
+  transition-delay: 0.1s;
+}
+
+.tooltip {
+  position: absolute;
+  right: -25px;
+  top: 50%;
+  color: white;
+  padding: 5px 15px;
+  line-height: 1.5;
+  border-radius: 5px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+  background-color: rgb(22, 22, 22);
+  transform: translate(100%, -50%);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.collapsed .menu-items a:hover + .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.tooltip::before {
+  content: "\f0d9";
+  font-family: 'Font Awesome 6 Free';
+  position: absolute;
+  font-weight: 900;
+  left: 0;
+  top: 50%;
+  font-size: 20px;
+  color: #161616;
+  transform: translate(-50%, -50%);
+}
+
+main {
+  position: relative;
+  left: var(--menu-width);
+  width: calc(100% - var(--menu-width));
+  transition: left 0.3s ease, width 0.3s ease;
+  padding: 20px;
+  color: white;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.collapsed main {
+  left: var(--collapsed-width);
+  width: calc(100% - var(--collapsed-width));
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  :root {
+    --menu-width: 220px;
+  }
+  
+  .collapsed aside {
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  
+  .collapsed main {
+    left: 0;
+    width: 100%;
+  }
+}

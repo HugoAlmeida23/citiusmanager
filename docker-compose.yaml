@@ -1,0 +1,122 @@
+version: '3.7'
+
+services:
+  # Django Backend (Ajustado para t3.micro)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'  # 25% da CPU disponível
+          memory: 300M   # 300MB de RAM
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
+      - SUPABASE_SECRET_KEY=your_supabase_secret_key
+      - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    restart: always
+    command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers=2 --threads=4 --timeout=120
+    networks:
+      - app-network
+
+  # React Frontend (Ajustado para t3.micro)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'  # 10% da CPU disponível
+          memory: 50M   # 50MB de RAM
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - app-network
+
+  # Celery Worker (Ajustado para t3.micro)
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '0.35'  # 35% da CPU disponível
+          memory: 400M   # 400MB de RAM
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Lisbon
+      - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
+      - SUPABASE_SECRET_KEY=your_supabase_secret_key
+      - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    restart: always
+    command: celery -A backend worker -l info --concurrency=2 --max-tasks-per-child=10
+    networks:
+      - app-network
+
+  # Celery Beat (Ajustado para t3.micro)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'  # 15% da CPU disponível
+          memory: 150M   # 150MB de RAM
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Lisbon
+      - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
+      - SUPABASE_SECRET_KEY=your_supabase_secret_key
+      - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    restart: always
+    command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    networks:
+      - app-network
+
+  # Redis (Ajustado para t3.micro)
+  redis:
+    image: redis:alpine
+    deploy:
+      resources:
+        limits:
+          cpus: '0.10'  # 10% da CPU disponível
+          memory: 50M    # 50MB de RAM
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    restart: always
+    command: redis-server --save 20 1 --maxmemory 50mb --maxmemory-policy allkeys-lru
+
+networks:
+  app-network:
+    driver: bridge
+    enable_ipv6: true

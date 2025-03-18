@@ -1,0 +1,45 @@
+.notifications-container {
+    padding: 1rem;
+    margin-bottom: 2rem;
+  }
+  
+  .refresh-button {
+    background-color: #4a6bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .refresh-button:hover {
+    background-color: #3a5bef;
+  }
+  
+  .refresh-button:disabled {
+    background-color: #a0a0a0;
+    cursor: not-allowed;
+  }
+  
+  .success-message {
+    background-color: #e6ffed;
+    border: 1px solid #b4f0c5;
+    color: #1a6034;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }
+  
+  .error-message {
+    background-color: #ffeded;
+    border: 1px solid #f0b4b4;
+    color: #601a1a;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+  }

@@ -1,0 +1,97 @@
+2025-03-06 22:53:51,191 - django.utils.autoreload - INFO - C:\Users\hugos\Desktop\Advogado\webapp-react (2)\webapp-react\backend\api\views.py changed, reloading.
+2025-03-06 22:54:02,369 - django.request - WARNING - Not Found: /api/token/refresh
+2025-03-06 22:54:02,371 - django.request - WARNING - Not Found: /api/token/refresh
+2025-03-06 23:05:28,135 - django.request - WARNING - Not Found: /api/refresh-notifications/
+2025-03-06 23:05:35,724 - django.request - WARNING - Not Found: /api/refresh-notifications/
+2025-03-06 23:07:01,956 - django.request - WARNING - Not Found: /api/refresh-notifications/
+2025-03-06 23:08:01,396 - django.utils.autoreload - INFO - C:\Users\hugos\Desktop\Advogado\webapp-react (2)\webapp-react\backend\api\urls.py changed, reloading.
+2025-03-06 23:08:07,154 - citius-scraper - INFO - Starting Citius scraping job
+2025-03-06 23:08:09,563 - citius-scraper - INFO - Connected to Supabase
+2025-03-06 23:08:09,741 - citius-scraper - INFO - Navigated to Citius login page
+2025-03-06 23:08:10,266 - citius-scraper - INFO - Logged in to Citius
+2025-03-06 23:08:10,587 - citius-scraper - INFO - Navigated to notifications page
+2025-03-06 23:08:10,927 - citius-scraper - INFO - Clicked on 'Todas' to view all notifications
+2025-03-06 23:08:13,936 - citius-scraper - INFO - Found 10 notification rows
+2025-03-06 23:08:14,724 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97980596 "HTTP/2 404 Not Found"
+2025-03-06 23:08:14,725 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:14,917 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.469490431 "HTTP/2 404 Not Found"
+2025-03-06 23:08:14,918 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,111 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97976026 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,112 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,315 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975578 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,315 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,441 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975466 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,442 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,565 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.137540031 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,566 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,722 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546165 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,722 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,844 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546025 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,845 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:15,980 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51544204 "HTTP/2 404 Not Found"
+2025-03-06 23:08:15,980 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:16,097 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51539020 "HTTP/2 404 Not Found"
+2025-03-06 23:08:16,097 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:08:16,097 - citius-scraper - INFO - Scraping job completed. Inserted 0 new notifications.
+2025-03-06 23:08:18,175 - citius-scraper - INFO - Closed WebDriver
+2025-03-06 23:09:13,635 - django.utils.autoreload - INFO - C:\Users\hugos\Desktop\Advogado\webapp-react (2)\webapp-react\backend\api\webscrapping.py changed, reloading.
+2025-03-06 23:09:29,427 - citius-scraper - INFO - Starting Citius scraping job
+2025-03-06 23:09:30,997 - citius-scraper - INFO - Connected to Supabase
+2025-03-06 23:09:31,192 - citius-scraper - INFO - Navigated to Citius login page
+2025-03-06 23:09:31,915 - citius-scraper - INFO - Logged in to Citius
+2025-03-06 23:09:32,259 - citius-scraper - INFO - Navigated to notifications page
+2025-03-06 23:09:32,580 - citius-scraper - INFO - Clicked on 'Todas' to view all notifications
+2025-03-06 23:09:35,588 - citius-scraper - INFO - Found 10 notification rows
+2025-03-06 23:09:36,079 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97980596 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,080 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,208 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.469490431 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,209 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,332 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97976026 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,334 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,465 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975578 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,465 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,597 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975466 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,597 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,726 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.137540031 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,727 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,863 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546165 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,864 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:36,992 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546025 "HTTP/2 404 Not Found"
+2025-03-06 23:09:36,994 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:37,168 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51544204 "HTTP/2 404 Not Found"
+2025-03-06 23:09:37,168 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:37,296 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51539020 "HTTP/2 404 Not Found"
+2025-03-06 23:09:37,296 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:09:37,296 - citius-scraper - INFO - Scraping job completed. Inserted 0 new notifications.
+2025-03-06 23:09:39,372 - citius-scraper - INFO - Closed WebDriver
+2025-03-06 23:10:08,834 - django.utils.autoreload - INFO - C:\Users\hugos\Desktop\Advogado\webapp-react (2)\webapp-react\backend\api\webscrapping.py changed, reloading.
+2025-03-06 23:10:17,231 - citius-scraper - INFO - Starting Citius scraping job
+2025-03-06 23:10:18,791 - citius-scraper - INFO - Connected to Supabase
+2025-03-06 23:10:18,964 - citius-scraper - INFO - Navigated to Citius login page
+2025-03-06 23:10:19,405 - citius-scraper - INFO - Logged in to Citius
+2025-03-06 23:10:19,885 - citius-scraper - INFO - Navigated to notifications page
+2025-03-06 23:10:20,202 - citius-scraper - INFO - Clicked on 'Todas' to view all notifications
+2025-03-06 23:10:23,214 - citius-scraper - INFO - Found 10 notification rows
+2025-03-06 23:10:23,862 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97980596 "HTTP/2 404 Not Found"
+2025-03-06 23:10:23,863 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,003 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.469490431 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,003 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,140 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97976026 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,140 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,274 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975578 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,274 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,402 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.97975466 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,403 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,534 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.137540031 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,534 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,663 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546165 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,663 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,788 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51546025 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,788 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:24,916 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51544204 "HTTP/2 404 Not Found"
+2025-03-06 23:10:24,917 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:25,046 - httpx - INFO - HTTP Request: GET https://shzvugthjndlagxlcowp.supabase.co/rest/v1/notifications?select=%2A&referencia=eq.51539020 "HTTP/2 404 Not Found"
+2025-03-06 23:10:25,047 - citius-scraper - ERROR - Error processing row: {'code': '42P01', 'details': None, 'hint': None, 'message': 'relation "public.notifications" does not exist'}
+2025-03-06 23:10:25,047 - citius-scraper - INFO - Scraping job completed. Inserted 0 new notifications.
+2025-03-06 23:10:27,125 - citius-scraper - INFO - Closed WebDriver
+2025-03-06 23:13:00,919 - django.utils.autoreload - INFO - C:\Users\hugos\Desktop\Advogado\webapp-react (2)\webapp-react\backend\api\webscrapping.py changed, reloading.
