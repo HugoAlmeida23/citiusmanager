@@ -29,11 +29,13 @@ def get_chrome_driver(options=None):
     """Create and return a Chrome WebDriver with specified options"""
     if options is None:
         options = Options()
-        options.add_argument('--headless')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--no-sandbox')
+        options.add_argument('--headless')  # Run in headless mode (no UI)
+        options.add_argument('--disable-gpu')  # Disable GPU acceleration
+        options.add_argument('--no-sandbox')  # Disable sandboxing for security
+        options.page_load_strategy = "eager"  # Try "normal" or "none" if needed
         options.add_argument('--disable-dev-shm-usage')
-    
+        options.add_argument('--disable-browser-side-navigation')
+        
     # Use WebDriver Manager for driver compatibility
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
@@ -64,14 +66,6 @@ def scrape_citius_data():
         logger.warning("No active Citius accounts found. Please add accounts in the management interface.")
         return 0
     
-    # Initialize options for the Chrome driver
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.page_load_strategy = "eager"  # Try "normal" or "none" if needed
-
     # Create the Chrome driver
     driver = get_chrome_driver()
     driver.implicitly_wait(60)
@@ -176,6 +170,7 @@ def process_account(driver, supabase, account):
     new_not = []
     
     try:
+        logger.info("trying to get login")
         # Open the login page
         driver.get("https://citius.tribunaisnet.mj.pt/habilus/myhabilus/Login.aspx")
         logger.info(f"Navigated to Citius login page for {account.username}")
