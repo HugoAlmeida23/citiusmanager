@@ -5,6 +5,8 @@
 :root {
   --menu-width: 250px;
   --collapsed-width: 60px;
+  --sidebar-bg: linear-gradient(0deg, black, #1f314b);
+  --transition-speed: 0.3s;
 }
 
 body {
@@ -15,38 +17,26 @@ body {
   min-height: 100vh;
 }
 
+.sidebar-container {
+  position: relative;
+  z-index: 999;
+}
+
 aside {
   padding: 10px;
   position: fixed;
   min-height: 100vh;
-  background: linear-gradient(0deg, black, #1f314b);
+  background: var(--sidebar-bg);
   width: var(--menu-width);
   color: white;
-  transition: width 0.3s ease;
+  transition: all var(--transition-speed) ease;
   box-shadow: 0px 0px 15px 0px rgba(0, 0, 0, 0.45);
-  z-index: 10;
+  z-index: 1000;
   box-sizing: border-box;
 }
 
 .collapsed aside {
   width: var(--collapsed-width);
-}
-
-.menu-btn {
-  color: white;
-  position: absolute;
-  top: 20px;
-  right: 0;
-  padding: 8px;
-  border: none;
-  font-size: 15px;
-  aspect-ratio: 1;
-  border-radius: 0 50% 50% 0;
-  cursor: pointer;
-  transform: translateX(100%);
-  box-shadow: 2px 0px 5px 0px #1a1a1a;
-  background: #1b2b42;
-  z-index: 20;
 }
 
 .logo-wrapper {
@@ -155,7 +145,7 @@ ul {
   transition: opacity 0.3s, visibility 0.3s;
   background-color: rgb(22, 22, 22);
   transform: translate(100%, -50%);
-  z-index: 20;
+  z-index: 1001;
   pointer-events: none;
 }
 
@@ -180,7 +170,7 @@ main {
   position: relative;
   left: var(--menu-width);
   width: calc(100% - var(--menu-width));
-  transition: left 0.3s ease, width 0.3s ease;
+  transition: left var(--transition-speed) ease, width var(--transition-speed) ease;
   padding: 20px;
   color: white;
   min-height: 100vh;
@@ -192,20 +182,101 @@ main {
   width: calc(100% - var(--collapsed-width));
 }
 
+/* Mobile toggle button */
+.mobile-toggle-btn {
+  display: none;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1002;
+  background-color: #1b2b42;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mobile-toggle-btn:hover {
+  background-color: #2a3e59;
+}
+
+/* Sidebar overlay (for mobile) */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  :root {
-    --menu-width: 220px;
+  .mobile-toggle-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   
-  .collapsed aside {
-    width: 0;
-    padding: 0;
-    overflow: hidden;
+  /* Show overlay when sidebar is open */
+  .mobile .sidebar-overlay {
+    display: block;
+  }
+  
+  .mobile aside {
+    transform: translateX(0);
+    width: 80%; /* Wider sidebar on mobile */
+    max-width: 300px;
+  }
+  
+  .mobile.collapsed aside {
+    transform: translateX(-100%);
+    width: 80%; /* Keep width consistent for animation */
+    box-shadow: none;
+  }
+  
+  .mobile .tooltip {
+    display: none; /* Hide tooltips on mobile */
+  }
+  
+  .mobile .item-name {
+    opacity: 1;
+    visibility: visible;
+    width: auto;
+    height: auto;
+    display: block;
+  }
+  
+  /* Main content adjustments */
+  main {
+    left: 0;
+    width: 100%;
+    padding: 15px;
   }
   
   .collapsed main {
     left: 0;
     width: 100%;
+  }
+  
+  /* Increase tap targets for mobile */
+  .menu-items a {
+    padding: 12px 10px;
+    margin-bottom: 5px;
+  }
+  
+  .icon {
+    font-size: 18px;
+  }
+  
+  .item-name {
+    font-size: 16px;
   }
 }

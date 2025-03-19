@@ -803,4 +803,284 @@ tbody tr:hover {
   background-color: #f3f4f6;
 }
 
+/* Estilos específicos para o painel de personalização de colunas */
 
+/* Container principal de personalização de colunas */
+.column-settings-container {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Cabeçalho do painel de personalização */
+.column-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.column-settings-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+/* Botões de ação rápida (Mostrar Todas/Ocultar Todas) */
+.column-settings-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.column-settings-actions button {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+/* Botão Mostrar Todas */
+button.show-all-columns {
+  background-color: #2563eb;
+  color: white;
+}
+
+button.show-all-columns:hover {
+  background-color: #1d4ed8;
+}
+
+/* Botão Ocultar Todas */
+button.hide-all-columns {
+  background-color: #4b5563;
+  color: white;
+}
+
+button.hide-all-columns:hover {
+  background-color: #374151;
+}
+
+/* Grid de checkboxes para as colunas */
+.column-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* Itens individuais de checkbox */
+.column-checkbox-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+}
+
+.column-checkbox-item:hover {
+  background-color: #f3f4f6;
+}
+
+/* Estilização dos checkboxes */
+.column-checkbox-item input[type="checkbox"] {
+  height: 1rem;
+  width: 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+
+.column-checkbox-item input[type="checkbox"]:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.column-checkbox-item label {
+  font-size: 0.875rem;
+  color: #4b5563;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+/* Rodapé do painel com botão Aplicar */
+.column-settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Botão Aplicar Alterações */
+button.apply-columns {
+  background-color: #059669;
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+button.apply-columns:hover {
+  background-color: #047857;
+}
+
+/* Botão de personalizar tabela na barra de ferramentas */
+.customize-table-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #4b5563;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.customize-table-button:hover {
+  background-color: #374151;
+}
+
+.customize-table-button svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+/* Responsividade para o painel de personalização */
+@media (max-width: 768px) {
+  .column-options-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .column-settings-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .column-settings-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .column-options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .flex-col .mr-2 {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Filter Button Styles */
+.filter-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px; /* Prevent width shrinking */
+  min-height: 40px; /* Prevent height shrinking */
+  padding: 0;
+  background-color: #2563eb; /* bg-blue-600 */
+  color: white;
+  border: none;
+  border-radius: 0.375rem; /* rounded-md */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.filter-button:hover {
+  background-color: #1d4ed8; /* hover:bg-blue-700 */
+}
+
+.filter-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6; /* focus:ring-2 and focus:ring-blue-500 */
+}
+
+.filter-button:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.filter-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Ensure button maintains square shape on all devices */
+@media (max-width: 768px) {
+  .filter-button {
+    margin-right: 0; /* Remove right margin on mobile */
+    align-self: flex-start; /* Align to the start of flex container */
+  }
+}
+
+/* Settings Button Styles */
+.settings-button {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #4b5563; /* bg-gray-600 */
+  color: white;
+  border: none;
+  border-radius: 0.375rem; /* rounded-md */
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.settings-button:hover {
+  background-color: #374151; /* hover:bg-gray-700 */
+}
+
+.settings-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #6b7280; /* focus:ring-2 and focus:ring-gray-500 */
+}
+
+.settings-button:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.settings-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.25rem;
+}
+
+/* Responsive styling for mobile */
+@media (max-width: 768px) {
+  .settings-button {
+    width: auto;
+    max-width: 100%;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+}
