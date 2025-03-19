@@ -169,58 +169,6 @@ def send_email(subject, body, email):
         logger.info(f"Email sent successfully: {response['MessageId']}")
     except ClientError as e:
         logger.error(f"Failed to send email: {str(e)}")
-
-def download_and_store_document(driver, document_url):
-    """
-    Opens the document URL in a new tab, downloads the document, and returns the document URL.
-    
-    Args:
-        driver: Selenium WebDriver instance
-        document_url: URL of the document page
-    
-    Returns:
-        The extracted download URL, or None if not found.
-    """
-    logger.info(f"Accessing document page: {document_url}")
-
-    try:
-        # Open the document URL in a new tab
-        driver.execute_script(f"window.open('{document_url}', '_blank');")
-
-        # Switch to the new tab (index -1 gets the last opened tab)
-        driver.switch_to.window(driver.window_handles[-1])
-
-        # Wait for the page to load and ensure the download link is available
-        download_element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
-        )
-
-        # Extract the download link
-        download_url = download_element.get_attribute("href")
-
-        if download_url:
-            logger.info(f"Found document download link: {download_url}")
-            
-            # Close the current tab (the new tab) after extracting the document URL
-            driver.close()
-
-            # Switch back to the original tab (main tab)
-            driver.switch_to.window(driver.window_handles[0])
-            
-            return download_url
-        else:
-            logger.warning("Download link not found.")
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-            return None
-
-    except Exception as e:
-        logger.error(f"Error extracting download link: {str(e)}")
-        driver.close()
-        driver.switch_to.window(driver.window_handles[0])
-        return None
-
-
     
 def process_account(driver, supabase, account):
     """Process a single Citius account with document download and storage"""
@@ -309,23 +257,8 @@ def process_account(driver, supabase, account):
                 logger.info(f"Added user_id to row_dict: {row_dict['user_id']}")
 
                 # Find the popup link and extract the URL
-                doc_url = None
-                try:
-                    # Look specifically for an <a> tag with an onclick attribute containing 'popupWindow'
-                    popup_links = row.find_elements(By.XPATH, './/a[contains(@onclick, "popupWindow")]')
-                    if popup_links:
-                        popup_link = popup_links[0]
-                        onclick_attr = popup_link.get_attribute('onclick')
-                        # Extract URL from onclick attribute
-                        url_start = onclick_attr.find("popupWindow('") + 13  # Length of "popupWindow('"
-                        url_end = onclick_attr.find("'", url_start)
-                        extracted_url = onclick_attr[url_start:url_end]
-                        # Combine with prelink
-                        doc_url = prelink + extracted_url
-                    else:
-                        logger.warning("Could not find popup link for this row")
-                except Exception as e:
-                    logger.error(f"Error finding popup link: {str(e)}")
+                doc_url = "em breve"
+                row_dict["doc"] = doc_url
                 
                 # Check if record already exists to avoid duplicates
                 existing = (
@@ -339,21 +272,6 @@ def process_account(driver, supabase, account):
                 email = supabase.table('api_citiusaccount').select('email').eq('username',account.username).execute() 
                 
                 if len(existing.data) == 0:
-                    # If we have a document URL, download and store it
-                    if doc_url:
-                        try:
-                            # Download and store the document
-                            stored_url = download_and_store_document(
-                                driver, 
-                                doc_url
-                            )
-                            # Update the doc field with the Supabase storage URL
-                            row_dict["doc"] = stored_url
-                        except Exception as e:
-                            logger.error(f"Error downloading document: {str(e)}")
-                            # Fallback to original URL
-                            row_dict["doc"] = doc_url
-                    
                     # Insert new record
                     result = supabase.table('api_processo').insert(row_dict).execute()
                     logger.info(row_dict)

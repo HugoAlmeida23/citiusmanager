@@ -350,7 +350,6 @@ const LegalNotificationsDashboard = () => {
                       "Responsável",
                       "Origem",
                       "Data Elaboração",
-                      "Documento",
                       "Acto",
                       "Tribunal",
                       "Un. Orgânica",
@@ -387,18 +386,6 @@ const LegalNotificationsDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {item.data}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <a
-                            href={item.doc}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline flex items-center"
-                            aria-label={`Ver documento para ${item.processo}`}
-                          >
-                            <FileText size={16} className="mr-1" />
-                            Ver Documento
-                          </a>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {item.acto}
