@@ -59,7 +59,12 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     restart: always
-    command: bash -c "nice -n -20 celery -A backend worker -l info --concurrency=$(nproc) --prefetch-multiplier=1"
+    command: celery -A backend worker -l info --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=2 --max-memory-per-child=200000 --time-limit=1200 --soft-time-limit=900
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 400M
     networks:
       - app-network
 

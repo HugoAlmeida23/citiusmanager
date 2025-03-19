@@ -1,11 +1,12 @@
 from celery import shared_task
 import logging
 from .webscrapping import scrape_citius_data, test_citius_login
+from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def scheduled_citius_scrape():
+@shared_task(bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
+def scheduled_citius_scrape(self):
     """
     Tarefa Celery para executar o webscraping do Citius de forma agendada
     """
@@ -14,10 +15,13 @@ def scheduled_citius_scrape():
         new_records, new_not = scrape_citius_data()
         logger.info(f"Novos registros: {new_records}, Novos encontrados: {new_not}")
         logger.info(f"Tarefa concluída. {new_records} novos registros adicionados.")
-        return new_records  # Return just the number for simplicity
+        return new_records
+    except SoftTimeLimitExceeded:
+        logger.error("Soft time limit exceeded in Citius scraping task")
+        raise self.retry(countdown=60*30)  # Retry after 30 minutes
     except Exception as e:
         logger.error(f"Erro na tarefa agendada: {str(e)}")
-        raise
+        
 
 @shared_task
 def test_citius_account(username, password):

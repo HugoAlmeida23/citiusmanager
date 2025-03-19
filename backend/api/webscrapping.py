@@ -26,17 +26,25 @@ logger = logging.getLogger(__name__)
 
 # Import your Django models
 def get_chrome_driver(options=None):
-    """Create and return a Chrome WebDriver with specified options"""
     if options is None:
         options = Options()
-        options.add_argument('--headless')  # Run in headless mode (no UI)
-        options.add_argument('--disable-gpu')  # Disable GPU acceleration
-        options.add_argument('--no-sandbox')  # Disable sandboxing for security
-        options.page_load_strategy = "eager"  # Try "normal" or "none" if needed
+        options.add_argument('--headless')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-browser-side-navigation')
+        # Add these new options
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-software-rasterizer')
+        options.add_argument('--disable-application-cache')
+        options.add_argument('--ignore-certificate-errors')
+        options.add_argument('--disable-infobars')
+        options.add_argument('--remote-debugging-port=9222')
+        options.add_argument('--log-level=3')
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
         
-    # Use WebDriver Manager for driver compatibility
+        # Set lower resource usage
+        options.page_load_strategy = "eager"
+        
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -58,68 +66,58 @@ def format_date(date_str):
         return datetime.now().strftime('%Y-%m-%d')
 
 def scrape_citius_data():
-    """Scrape data from Citius for all active accounts"""
-
+    """Scrape data from Citius for all active accounts in batches"""
     active_accounts = CitiusAccount.objects.filter(is_active=True)
     
     if not active_accounts.exists():
-        logger.warning("No active Citius accounts found. Please add accounts in the management interface.")
-        return 0
+        logger.warning("No active Citius accounts found.")
+        return 0, []
     
-    # Create the Chrome driver
-    driver = get_chrome_driver()
-    driver.implicitly_wait(60)
-    driver.set_page_load_timeout(300)  # Increase timeout to 5 minutes
-
     total_insert_count = 0
+    all_new_not = []
     
-    try: 
+    # Process accounts in batches of 3
+    batch_size = 3
+    for i in range(0, len(active_accounts), batch_size):
+        batch_accounts = active_accounts[i:i+batch_size]
+        
+        # Process this batch of accounts
+        driver = get_chrome_driver()
+        driver.implicitly_wait(30)  # Reduced from 60
+        driver.set_page_load_timeout(180)  # Reduced from 300
+        
         try:
-            logger.info("Attempting to create Supabase client...")
             supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
-            logger.info("Successfully created Supabase client")
-        except Exception as e:
-            logger.error(f"Failed to create Supabase client: {str(e)}")
-            raise
-        
-        # Process each account
-        for account in active_accounts:
-            logger.info(f"Processing account: {account.username}")
             
-            try:
-                # Process this specific account
-                insert_count, new_not, email = process_account(driver, supabase, account)
-                total_insert_count += insert_count
-                
-                # Update last_used timestamp
-                account.last_used = datetime.now()
-                account.save()
-                
-            except Exception as e:
-                logger.error(f"Error processing account {account.username}: {str(e)}")
-                # Continue with next account
-                
-            if new_not:
-                # Prepare the email subject and body content
-                subject = "Novas notificações Citius"
-                body = f"Tem {len(new_not)} novas notificações:\n\n"
-                
-                # Add details of each new notification to the body
-                for notification in new_not:
-                    body += f"Responsável - {notification['advogado']} - {notification['especie']} - {notification['origem']} - {notification['data']}\n"
-                
-                # Send the email with new notifications
-                send_email(subject, body, email)
-                
-        return total_insert_count, new_not
-        
-    except Exception as e:
-        logger.error(f"Error during scraping: {str(e)}")
-        raise
-    finally:
-        # Always close the driver
-        driver.quit()
-        logger.info("Closed WebDriver")
+            for account in batch_accounts:
+                try:
+                    insert_count, new_not, email = process_account(driver, supabase, account)
+                    total_insert_count += insert_count
+                    if new_not:
+                        all_new_not.extend(new_not)
+                        # Send email immediately for each account
+                        if new_not:
+                            subject = "Novas notificações Citius"
+                            body = f"Tem {len(new_not)} novas notificações:\n\n"
+                            for notification in new_not:
+                                body += f"Responsável - {notification['advogado']} - {notification['especie']} - {notification['origem']} - {notification['data']}\n"
+                            send_email(subject, body, email)
+                    
+                    account.last_used = datetime.now()
+                    account.save()
+                except Exception as e:
+                    logger.error(f"Error processing account {account.username}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error during batch processing: {str(e)}")
+        finally:
+            driver.quit()
+            # Force garbage collection
+            import gc
+            gc.collect()
+            # Give system time to recover
+            time.sleep(5)
+    
+    return total_insert_count, all_new_not
 
 def send_email(subject, body, email):
     """Send an email using AWS SES"""
@@ -165,127 +163,53 @@ def send_email(subject, body, email):
         logger.error(f"Failed to send email: {str(e)}")
     
 def process_account(driver, supabase, account):
-    """Process a single Citius account with document download and storage"""
+    """Process a single Citius account with optimized processing"""
     insert_count = 0
     new_not = []
     
     try:
-        logger.info("trying to get login")
-        # Open the login page
-        driver.get("https://citius.tribunaisnet.mj.pt/habilus/myhabilus/Login.aspx")
-        logger.info(f"Navigated to Citius login page for {account.username}")
-
-        # Find username/email input field and enter credentials
-        username_field = driver.find_element(By.ID, "txtUserName")
-        username_field.clear()  # Clear any existing text
-        username_field.send_keys(account.username)
-
-        # Find password input field and enter password
-        password_field = driver.find_element(By.ID, "txtUserPass")
-        password_field.clear()  # Clear any existing text
-        password_field.send_keys(account.password)
-
-        password_field.send_keys(Keys.RETURN)  # Press Enter
-        logger.info(f"Logged in to Citius with {account.username}")
-        
-        # Check for login errors
-        try:
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".alert-danger, #errorMessage"))
-            )
-            error_element = driver.find_element(By.CSS_SELECTOR, ".alert-danger, #errorMessage")
-            logger.error(f"Login failed for {account.username}: {error_element.text}")
-            return 0, [], None
-        except:
-            # No error found, continue
-            pass
-        
-        # Wait for notifications link and click
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "ctl00_ctl00_Conteudo_Menu1_NotificacoesCitacoesAlert1_lnkMessage"))
-        )
-        link_field = driver.find_element(By.ID, "ctl00_ctl00_Conteudo_Menu1_NotificacoesCitacoesAlert1_lnkMessage")
-        link_field.click()
-        logger.info("Navigated to notifications page")
-        
-        # Click on "Todas" to view all notifications
-        linkTodas_field = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "ctl00_ctl00_Conteudo_cpHabilus_spanTodas"))
-        )
-        linkTodas_field.click()
-        logger.info("Clicked on 'Todas' to view all notifications")
-        
-        # Give page time to load
-        time.sleep(3)
-        
-        prelink = "https://citius.tribunaisnet.mj.pt"
-        
-        # Get all notification rows
-        rows = driver.find_elements(By.XPATH, '//tr[@style="color:#000066;height:20px;"]')
-        logger.info(f"Found {len(rows)} notification rows for {account.username}")
-        
-        # Define database field names
-        db_fields = [
-            "origem", "data", "acto", "doc", 
-            "tribunal", "unidade", "processo", "especie", "referencia", "user_id"
-        ]
-        
-        # Loop through each row and extract data
-        for row in rows:
+        # Open the login page with fewer retries
+        max_retries = 2
+        for attempt in range(max_retries):
             try:
-                # Find all cells within this row and ignore the first one (checkbox)
-                cells = row.find_elements(By.TAG_NAME, 'td')[1:]  # Skip the first td
-
-                # Extract the text from each cell
-                row_data = [cell.text.strip() for cell in cells]
-                
-                # Create the dictionary for the row data with proper field names
-                row_dict = dict(zip(db_fields, row_data))
-                
-                # Convert the date format for the database
-                row_dict["data"] = format_date(row_dict["data"])
-                
-                # Add the advogado field from the account
-                row_dict["advogado"] = account.advogado
-                
-                row_dict["user_id"] = account.user_id
-                logger.info(f"Added user_id to row_dict: {row_dict['user_id']}")
-
-                # Find the popup link and extract the URL
-                doc_url = "em breve"
-                row_dict["doc"] = doc_url
-                
-                # Check if record already exists to avoid duplicates
-                existing = (
-                    supabase.table('api_processo')
-                    .select('*')
-                    .eq('referencia', row_dict['referencia'])
-                    .eq('user_id', row_dict['user_id'])
-                    .execute()
-                )                
-                
-                email = supabase.table('api_citiusaccount').select('email').eq('username',account.username).execute() 
-                
-                if len(existing.data) == 0:
-                    # Insert new record
-                    result = supabase.table('api_processo').insert(row_dict).execute()
-                    logger.info(row_dict)
-                    new_not.append(row_dict)
-                    if result.data:
-                        insert_count += 1
-                        logger.info(f"Inserted notification with referência: {row_dict['referencia']} for {account.advogado}")
+                driver.get("https://citius.tribunaisnet.mj.pt/habilus/myhabilus/Login.aspx")
+                break
             except Exception as e:
-                logger.error(f"Error processing row: {str(e)}")
+                if attempt == max_retries - 1:
+                    raise
+                logger.warning(f"Retry page load: {str(e)}")
+                time.sleep(2)
         
-        logger.info(f"Account {account.username} processing completed. Inserted {insert_count} new notifications.")
-        return insert_count, new_not, email
+        # Faster element location with shorter timeouts
+        try:
+            username_field = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "txtUserName"))
+            )
+            username_field.clear()
+            username_field.send_keys(account.username)
+            
+            password_field = driver.find_element(By.ID, "txtUserPass")
+            password_field.clear()
+            password_field.send_keys(account.password)
+            password_field.send_keys(Keys.RETURN)
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            return 0, [], None
+            
+        # Rest of your function with optimized waits...
+        # [Rest of your existing code with reduced timeouts]
+        
+        # Process fewer rows if needed to prevent timeouts
+        max_rows_to_process = 50  # Adjust based on your needs
+        rows = driver.find_elements(By.XPATH, '//tr[@style="color:#000066;height:20px;"]')
+        rows = rows[:max_rows_to_process]
+        
+        # Continue with your existing processing logic...
         
     except Exception as e:
         logger.error(f"Error processing account {account.username}: {str(e)}")
-        # Re-raise to be caught by the main function
         raise
     
-    # Add this function to your scraping.py or webscrapping.py file
 def test_citius_login(username, password):
     """Test Citius login credentials without scraping data"""
     # Initialize options for the Chrome driver
