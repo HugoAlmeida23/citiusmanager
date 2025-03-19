@@ -102,11 +102,14 @@ WSGI_APPLICATION = "backend.wsgi.application"
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'HOST': 'db.shzvugthjndlagxlcowp.supabase.co',
-        'PORT': '5432',
+        'HOST': 'aws-0-eu-west-3.pooler.supabase.com',  # Pointing to the Supabase session pooler
+        'PORT': '5432',  # Default PostgreSQL port for the pooler
         'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'datapostgressql',  # Altere conforme necessário
+        'USER': 'postgres.shzvugthjndlagxlcowp',  # Your PostgreSQL user
+        'PASSWORD': 'datapostgressql',  # Use environment variable for the password (or hardcode it securely)
+        'OPTIONS': {
+            'sslmode': 'require',  # Ensure SSL mode is enabled
+        },
     }
 }
 
