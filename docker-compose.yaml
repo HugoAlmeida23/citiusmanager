@@ -1,16 +1,8 @@
-version: '3.7'
-
 services:
-  # Django Backend (Ajustado para t3.micro)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'  # 25% da CPU disponível
-          memory: 300M   # 300MB de RAM
     volumes:
       - ./backend:/app
     ports:
@@ -21,24 +13,22 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres.shzvugthjndlagxlcowp:datapostgressql@aws-0-eu-west-3.pooler.supabase.com:5432/postgres
       - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
       - SUPABASE_SECRET_KEY=your_supabase_secret_key
       - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: always
-    command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers=2 --threads=4 --timeout=120
+    command: gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers=2 --threads=2 --timeout=120
     networks:
       - app-network
 
-  # React Frontend (Ajustado para t3.micro)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '0.10'  # 10% da CPU disponível
-          memory: 50M   # 50MB de RAM
     ports:
       - "3000:80"
     depends_on:
@@ -47,16 +37,10 @@ services:
     networks:
       - app-network
 
-  # Celery Worker (Ajustado para t3.micro)
   celery_worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '0.35'  # 35% da CPU disponível
-          memory: 400M   # 400MB de RAM
     volumes:
       - ./backend:/app
     depends_on:
@@ -65,25 +49,24 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
+      - CELERYD_HIJACK_ROOT_LOGGER=False
       - TZ=Europe/Lisbon
+      - DATABASE_URL=postgresql://postgres.shzvugthjndlagxlcowp:datapostgressql@aws-0-eu-west-3.pooler.supabase.com:5432/postgres
       - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
       - SUPABASE_SECRET_KEY=your_supabase_secret_key
       - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: always
-    command: celery -A backend worker -l info --concurrency=2 --max-tasks-per-child=10
+    command: celery -A backend worker -l info --concurrency=1 --prefetch-multiplier=1 --max-tasks-per-child=5 --max-memory-per-child=400000
     networks:
       - app-network
 
-  # Celery Beat (Ajustado para t3.micro)
   celery_beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    deploy:
-      resources:
-        limits:
-          cpus: '0.15'  # 15% da CPU disponível
-          memory: 150M   # 150MB de RAM
     volumes:
       - ./backend:/app
     depends_on:
@@ -92,31 +75,29 @@ services:
       - ./backend/.env
     environment:
       - PYTHONUNBUFFERED=1
+      - CELERYD_HIJACK_ROOT_LOGGER=False
       - TZ=Europe/Lisbon
+      - DATABASE_URL=postgresql://postgres.shzvugthjndlagxlcowp:datapostgressql@aws-0-eu-west-3.pooler.supabase.com:5432/postgres
       - SUPABASE_URL=https://shzvugthjndlagxlcowp.supabase.co
       - SUPABASE_SECRET_KEY=your_supabase_secret_key
       - SUPABASE_ACCESS_KEY=your_supabase_access_key
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: always
-    command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: celery -A backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler --max-interval=30
     networks:
       - app-network
 
-  # Redis (Ajustado para t3.micro)
   redis:
     image: redis:alpine
-    deploy:
-      resources:
-        limits:
-          cpus: '0.10'  # 10% da CPU disponível
-          memory: 50M    # 50MB de RAM
     ports:
       - "6379:6379"
     networks:
       - app-network
     restart: always
-    command: redis-server --save 20 1 --maxmemory 50mb --maxmemory-policy allkeys-lru
+    command: redis-server --save 20 1 --maxmemory 100mb --maxmemory-policy allkeys-lru
 
 networks:
   app-network:
     driver: bridge
-    enable_ipv6: true
