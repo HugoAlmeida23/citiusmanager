@@ -100,9 +100,15 @@ def scrape_citius_data():
                 # Continue with next account
                 
             if new_not:
-                # Prepare the email subject and body content
-                subject = "Novas notificações Citius"
-                body = f"Tem {len(new_not)} novas notificações:\n\n"
+                if new_not.size() > 1:
+                    # Prepare the email subject and body content
+                    subject = "Novas notificações Citius"
+                    body = f"Tem {len(new_not)} novas notificações:\n\n"
+
+                if new_not.size() == 1:
+                    # Prepare the email subject and body content
+                    subject = "Nova notificação Citius"
+                    body = f"Tem 1 nova notificação:\n\n"
                 
                 # Add details of each new notification to the body
                 for notification in new_not:
