@@ -23,6 +23,5 @@ class ProcessoSerializer(serializers.ModelSerializer):
 class CitiusAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = CitiusAccount
-        fields = ['id', 'username', 'password', 'advogado', 'is_active', 'last_used', 'created_at', 'updated_at','email']
-        read_only_fields = ['created_at', 'updated_at', 'last_used']
-        read_only_fields = ["user"]  # Prevent clients from directly setting the user
+        fields = ['id', 'username', 'password', 'advogado', 'is_active', 'last_used', 'created_at', 'updated_at', 'email']
+        read_only_fields = ['created_at', 'updated_at', 'last_used', 'user']

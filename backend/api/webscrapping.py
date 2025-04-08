@@ -106,7 +106,8 @@ def scrape_citius_data():
                 
                 # Add details of each new notification to the body
                 for notification in new_not:
-                    body += f"Responsável - {notification['advogado']} - {notification['especie']} - {notification['origem']} - {notification['data']}\n"
+                    # "acto", "tribunal" e "unid orgânica";
+                    body += f"Responsável - {safe_text(notification['advogado'])} - {safe_text(notification['especie'])} - {safe_text(notification['acto'])} - {safe_text(notification['tribunal'])} - {safe_text(notification['unidade'])} - {safe_text(notification['origem'])} - {safe_text(notification['data'])}\n"
                 
                 # Send the email with new notifications
                 send_email(subject, body, email)
@@ -121,49 +122,275 @@ def scrape_citius_data():
         driver.quit()
         logger.info("Closed WebDriver")
 
-def send_email(subject, body, email):
-    """Send an email using AWS SES"""
+def safe_text(text):
+    if isinstance(text, str):
+        return text.replace("-", "/")  # Usando hífen não-quebrável (non-breaking hyphen)
+    return text
+
+def send_email(subject, body, recipient_email):
+    """
+    Send a professional HTML email using AWS SES with responsive design and formatting
+    
+    Args:
+        subject (str): Email subject
+        body (str): Raw notification text content
+        recipient_email (str): Recipient email address
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    import os
+    import logging
+    from datetime import datetime
+    import re
+    
+    logger = logging.getLogger(__name__)
+    
+    # Ensure email is extracted as a string from Supabase response
+    if hasattr(recipient_email, 'data') and isinstance(recipient_email.data, list) and len(recipient_email.data) > 0:
+        recipient_email = recipient_email.data[0].get('email', None)
+
+    if not isinstance(recipient_email, str):
+        logger.error(f"Invalid email format after extraction: {recipient_email}")
+        return
+    
+    # Create SES client
     client = boto3.client(
         'ses',
         aws_access_key_id=os.getenv("aws_access_key_id"),
         aws_secret_access_key=os.getenv("aws_secret_access_key"),
         region_name="eu-north-1"
     )
-    logger.info(email)
-    # Ensure email is extracted as a string from Supabase response
-    if hasattr(email, 'data') and isinstance(email.data, list) and len(email.data) > 0:
-        email = email.data[0].get('email', None)  # Extract email from first item in list
-
-    if not isinstance(email, str):
-        logger.error(f"Invalid email format after extraction: {email}")
-        return  # Stop execution if email is still invalid
-
     
-    logger.debug(f"Email data type: {type(email)}, value: {email}")
+    # Format current date
+    current_date = datetime.now().strftime("%d/%m/%Y")
+    
+    # Parse notifications text and create table rows
+    notifications = []
+    if "novas notificações:" in body:
+        lines = body.split("\n\n")[1].strip().split("\n")
+        for line in lines:
+            # Parse notification line with regex - agora com campos adicionais
+            # Update the regex pattern to capture all four groups
+            match = re.match(r"Responsável - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*)", line)
+            if match:
+                advogado, especie, acto, tribunal, unidade, origem, data = match.groups()
+                notifications.append({
+                    
+                    "advogado": advogado.strip(),
+                    "especie": especie.strip(),
+                    "acto": acto.strip(),
+                    "tribunal": tribunal.strip(),
+                    "unidade": unidade.strip(),
+                    "origem": origem.strip(),
+                    "data": data.strip()
+                })
+    
+    # Create HTML table rows
+    table_rows = ""
+    for i, notif in enumerate(notifications):
+        bg_color = "#f2f7ff" if i % 2 == 0 else "#ffffff"
+        table_rows += f"""
+        <tr style="background-color: {bg_color};">
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal; ">{safe_text(notif['advogado'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['especie'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['acto'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['tribunal'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['unidade'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['origem'])}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['data'])}</td>
+        </tr>
+        """
+    
+    # Create HTML email content with responsive design
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{subject}</title>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+            body {{
+                font-family: 'Roboto', Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 0;
+                background-color: #f5f7fa;
+            }}
+            .container {{
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }}
+            .header {{
+                padding: 20px 0;
+                text-align: center;
+                border-bottom: 1px solid #e1e4e8;
+                margin-bottom: 20px;
+            }}
+            .logo {{
+                max-width: 180px;
+                height: auto;
+            }}
+            .content {{
+                padding: 0 20px;
+            }}
+            .notification-count {{
+                font-size: 18px;
+                font-weight: 500;
+                margin-bottom: 20px;
+                color: #2d3748;
+            }}
+            .table-container {{
+                overflow-x: auto;
+                margin-bottom: 20px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+                table-layout: fixed;
+            }}
+            th {{
+                background-color: #1a56db;
+                color: white;
+                font-weight: 500;
+                text-align: left;
+                padding: 12px;
+                font-size: 13px;
+                overflow: hidden;
+            }}
+            td {{
+                font-size: 12px;
+                padding: 12px;
+                border-bottom: 1px solid #e1e4e8;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                word-break: break-word;
+                vertical-align: top;
+                max-width: 0; /* Forces cell to respect width constraints */
+            }}
+            table td {{
+                font-size: 12px;
+                padding: 12px;
+                border-bottom: 1px solid #e1e4e8;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                word-break: break-word;
+                vertical-align: top;
+                max-width: 0;
+                white-space: normal !important; /* Forçar quebra de linha */
 
+            }}
+            .footer {{
+                text-align: center;
+                padding-top: 20px;
+                border-top: 1px solid #e1e4e8;
+                color: #718096;
+                font-size: 14px;
+            }}
+            @media screen and (max-width: 800px) {{
+                .container {{
+                    width: 100%;
+                    border-radius: 0;
+                }}
+                table {{
+                    display: block;
+                    overflow-x: auto;
+                }}
+                td {{
+                font-size: 10px;
+                }}
+            }}
+            /* Ajuste de largura para 7 colunas */
+            table th:nth-child(1), table td:nth-child(1) {{ width: 8%; }}  /* advogado */
+            table th:nth-child(2), table td:nth-child(2) {{ width: 15%; }} /* especie */
+            table th:nth-child(3), table td:nth-child(3) {{ width: 10%; }} /* acto */
+            table th:nth-child(4), table td:nth-child(4) {{ width: 25%; }} /* tribunal */
+            table th:nth-child(5), table td:nth-child(5) {{ width: 25%; }} /* unidade */
+            table th:nth-child(6), table td:nth-child(6) {{ width: 7%; }}  /* origem */
+            table th:nth-child(7), table td:nth-child(7) {{ width: 10%; }} /* data */
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <!-- Logo placeholder - replace with your actual logo URL -->
+                <h2 style="color: #1a56db; margin: 0;">Notificações Citius</h2>
+                <p style="color: #718096; margin: 5px 0 0 0;">Data: {current_date}</p>
+            </div>
+            
+            <div class="content">
+                <p class="notification-count">Tem {len(notifications)} novas notificações:</p>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Responsável</th>
+                                <th>Espécie</th>
+                                <th>Acto</th>
+                                <th>Tribunal</th>
+                                <th>Unidade</th>
+                                <th>Origem</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {table_rows}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <p style="margin-top: 20px;">Para mais detalhes, acesse a sua conta na plataforma Citius.</p>
+            </div>
+            
+            <div class="footer">
+                <p>Este é um email automático. Por favor, não responda a esta mensagem.</p>
+                <p>&copy; {datetime.now().year} Soft Solutions. Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Create text version as backup for email clients that don't support HTML
+    text_body = f"Notificações Citius - {current_date}\n\n"
+    text_body += f"Tem {len(notifications)} novas notificações:\n\n"
+    for notif in notifications:
+        text_body += f"Responsável: {notif['advogado']}\n"
+        text_body += f"Espécie: {notif['especie']}\n"
+        text_body += f"Acto: {notif['acto']}\n"
+        text_body += f"Tribunal: {notif['tribunal']}\n"
+        text_body += f"Unidade: {notif['unidade']}\n"
+        text_body += f"Origem: {notif['origem']}\n"
+        text_body += f"Data: {notif['data']}\n\n"
+    text_body += "Para mais detalhes, acesse a sua conta na plataforma Citius.\n\n"
+    text_body += f"© {datetime.now().year} Soft Solutions. Todos os direitos reservados."
+    
     try:
+        # Send email with both HTML and plain text versions
         response = client.send_email(
-            Source='no-reply@softsolutions.com.pt',  # Your verified sender email
-            Destination={
-                'ToAddresses': [
-                    email,  # Recipient email address
-                ],
-            },
+            Source='no-reply@softsolutions.com.pt',
+            Destination={'ToAddresses': [recipient_email]},
             Message={
-                'Subject': {
-                    'Data': subject,
-                },
+                'Subject': {'Data': subject},
                 'Body': {
-                    'Text': {
-                        'Data': body,
-                    },
-                },
+                    'Text': {'Data': text_body},
+                    'Html': {'Data': html_content}
+                }
             }
         )
-        logger.info(f"Email sent successfully: {response['MessageId']}")
+        logger.info(f"Email enviado com sucesso: {response['MessageId']}")
+        return True
     except ClientError as e:
-        logger.error(f"Failed to send email: {str(e)}")
-    
+        logger.error(f"Falha ao enviar o email: {str(e)}")
+        return False 
+     
 def process_account(driver, supabase, account):
     """Process a single Citius account with document download and storage"""
     insert_count = 0

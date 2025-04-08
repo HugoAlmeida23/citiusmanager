@@ -57,7 +57,7 @@ const LegalNotificationsDashboard = () => {
         const sortedData = [...res.data].sort((a, b) => {
           const dateA = parseDate(a.data);
           const dateB = parseDate(b.data);
-          return dateB - dateA;
+          return dateB - dateA; // Newest first
         });
         setNotificacoes(sortedData);
         setFilteredNotificacoes(sortedData);
@@ -70,11 +70,24 @@ const LegalNotificationsDashboard = () => {
   };
 
   // Parse date in "DD-MM-YYYY" format to Date object
-  const parseDate = (dateStr) => {
-    if (!dateStr) return new Date(0); // Handle empty dates
+  // Updated parseDate function for YYYY-MM-DD format
+const parseDate = (dateStr) => {
+  if (!dateStr) return new Date(0); // Handle empty dates
+  
+  // Check if the date is in YYYY-MM-DD format
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return new Date(dateStr);
+  }
+  
+  // Handle DD-MM-YYYY format if present
+  if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
     const [day, month, year] = dateStr.split("-");
     return new Date(`${year}-${month}-${day}`);
-  };
+  }
+  
+  // Fallback: try to parse the date as is
+  return new Date(dateStr);
+};
 
   // Get the most common item from an array of objects for a specific field
   const getMostCommon = (field) => {
@@ -120,7 +133,9 @@ const LegalNotificationsDashboard = () => {
   // Safely handle date sorting
   const datas = getUniqueValues("data").sort((a, b) => {
     try {
-      return parseDate(b) - parseDate(a);
+      const dateA = parseDate(a);
+      const dateB = parseDate(b);
+      return dateB - dateA; // Sort newest first
     } catch (error) {
       return 0;
     }
@@ -134,29 +149,36 @@ const LegalNotificationsDashboard = () => {
 
   // Apply filters and search
   useEffect(() => {
-    let results = [...notificacoes];
+  let results = [...notificacoes];
 
-    // Apply all active filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        results = results.filter((item) => item[key] === value);
-      }
-    });
-
-    // Apply search term across all fields
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase().trim();
-      results = results.filter((item) =>
-        Object.entries(item).some(
-          ([key, val]) =>
-            val && typeof val === "string" && val.toLowerCase().includes(search)
-        )
-      );
+  // Apply all active filters
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      results = results.filter((item) => item[key] === value);
     }
+  });
 
-    setFilteredNotificacoes(results);
-    setCurrentPage(0); // Reset to first page when filters change
-  }, [filters, searchTerm, notificacoes]);
+  // Apply search term across all fields
+  if (searchTerm) {
+    const search = searchTerm.toLowerCase().trim();
+    results = results.filter((item) =>
+      Object.entries(item).some(
+        ([key, val]) =>
+          val && typeof val === "string" && val.toLowerCase().includes(search)
+      )
+    );
+  }
+
+  // Sort the filtered results by date (newest first)
+  results = [...results].sort((a, b) => {
+    const dateA = parseDate(a.data);
+    const dateB = parseDate(b.data);
+    return dateB - dateA; 
+  });
+
+  setFilteredNotificacoes(results);
+  setCurrentPage(0); // Reset to first page when filters change
+}, [filters, searchTerm, notificacoes]);
 
   // Handle filter changes
   const handleFilterChange = (field, value) => {
