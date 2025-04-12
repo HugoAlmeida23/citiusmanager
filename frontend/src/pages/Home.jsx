@@ -6,6 +6,7 @@ import {
   FilterX,
   Search,
   Settings,
+  FileText,
 } from "lucide-react";
 import "../styles/Home.css";
 import Header from "../components/Header";
@@ -30,8 +31,9 @@ const LegalNotificationsDashboard = () => {
   const [columnSettingsVisible, setColumnSettingsVisible] = useState(false);
   const itemsPerPage = 5;
 
-  // Configuração de colunas
+  // Configuração de colunas - Added documento column as first column
   const allColumns = [
+    { id: "documento", label: "Documento", visible: true }, // Document column first
     { id: "advogado", label: "Responsável", visible: true },
     { id: "origem", label: "Origem", visible: true },
     { id: "data", label: "Data Elaboração", visible: true },
@@ -71,23 +73,23 @@ const LegalNotificationsDashboard = () => {
 
   // Parse date in "DD-MM-YYYY" format to Date object
   // Updated parseDate function for YYYY-MM-DD format
-const parseDate = (dateStr) => {
-  if (!dateStr) return new Date(0); // Handle empty dates
-  
-  // Check if the date is in YYYY-MM-DD format
-  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+  const parseDate = (dateStr) => {
+    if (!dateStr) return new Date(0); // Handle empty dates
+    
+    // Check if the date is in YYYY-MM-DD format
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return new Date(dateStr);
+    }
+    
+    // Handle DD-MM-YYYY format if present
+    if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+      const [day, month, year] = dateStr.split("-");
+      return new Date(`${year}-${month}-${day}`);
+    }
+    
+    // Fallback: try to parse the date as is
     return new Date(dateStr);
-  }
-  
-  // Handle DD-MM-YYYY format if present
-  if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
-    const [day, month, year] = dateStr.split("-");
-    return new Date(`${year}-${month}-${day}`);
-  }
-  
-  // Fallback: try to parse the date as is
-  return new Date(dateStr);
-};
+  };
 
   // Get the most common item from an array of objects for a specific field
   const getMostCommon = (field) => {
@@ -129,6 +131,7 @@ const parseDate = (dateStr) => {
   const tribunais = getUniqueValues("tribunal");
   const especies = getUniqueValues("especie");
   const unidades = getUniqueValues("unidade");
+  const doc = getUniqueValues("doc");
 
   // Safely handle date sorting
   const datas = getUniqueValues("data").sort((a, b) => {
@@ -149,36 +152,36 @@ const parseDate = (dateStr) => {
 
   // Apply filters and search
   useEffect(() => {
-  let results = [...notificacoes];
+    let results = [...notificacoes];
 
-  // Apply all active filters
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value) {
-      results = results.filter((item) => item[key] === value);
+    // Apply all active filters
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) {
+        results = results.filter((item) => item[key] === value);
+      }
+    });
+
+    // Apply search term across all fields
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase().trim();
+      results = results.filter((item) =>
+        Object.entries(item).some(
+          ([key, val]) =>
+            val && typeof val === "string" && val.toLowerCase().includes(search)
+        )
+      );
     }
-  });
 
-  // Apply search term across all fields
-  if (searchTerm) {
-    const search = searchTerm.toLowerCase().trim();
-    results = results.filter((item) =>
-      Object.entries(item).some(
-        ([key, val]) =>
-          val && typeof val === "string" && val.toLowerCase().includes(search)
-      )
-    );
-  }
+    // Sort the filtered results by date (newest first)
+    results = [...results].sort((a, b) => {
+      const dateA = parseDate(a.data);
+      const dateB = parseDate(b.data);
+      return dateB - dateA; 
+    });
 
-  // Sort the filtered results by date (newest first)
-  results = [...results].sort((a, b) => {
-    const dateA = parseDate(a.data);
-    const dateB = parseDate(b.data);
-    return dateB - dateA; 
-  });
-
-  setFilteredNotificacoes(results);
-  setCurrentPage(0); // Reset to first page when filters change
-}, [filters, searchTerm, notificacoes]);
+    setFilteredNotificacoes(results);
+    setCurrentPage(0); // Reset to first page when filters change
+  }, [filters, searchTerm, notificacoes]);
 
   // Handle filter changes
   const handleFilterChange = (field, value) => {
@@ -243,6 +246,39 @@ const parseDate = (dateStr) => {
     // Here you could save the configuration to localStorage or a backend
     setColumnSettingsVisible(false);
     // Optional: localStorage.setItem('tableColumns', JSON.stringify(visibleColumns));
+  };
+
+  // Function to handle document click and open PDF
+  const handleDocumentClick = (url) => {
+    if (!url) return;
+    
+    // Open the document in a new tab/window
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const renderDocumentCell = (docUrl) => {
+    if (!docUrl) return "-";
+
+    if (docUrl === "em breve") {
+      return (
+        <span className="text-gray-500 italic text-sm">
+          Documento indisponível
+        </span>
+      );
+    }
+    else {
+      return (
+        <button
+          onClick={() => handleDocumentClick(docUrl)}
+          className="custom-button"
+          title="Abrir documento"
+          aria-label="Abrir documento"
+        >
+          <FileText size={16} className="mr-1" />
+
+        </button>
+      );
+    }
   };
 
   return (
@@ -517,7 +553,9 @@ const parseDate = (dateStr) => {
                               key={colIdx}
                               className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                             >
-                              {item[column.id] || "-"}
+                              {column.id === "documento" 
+                                ? renderDocumentCell(item.doc)
+                                : item[column.id] || "-"}
                             </td>
                           ))}
                       </tr>

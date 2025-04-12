@@ -20,6 +20,9 @@ import uuid
 import tempfile
 from urllib.parse import urlparse
 from pathlib import Path
+from .documentmanager import document_manager
+from django.utils import timezone
+
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -57,84 +60,19 @@ def format_date(date_str):
     except:
         return datetime.now().strftime('%Y-%m-%d')
 
-def scrape_citius_data():
-    """Scrape data from Citius for all active accounts"""
-
-    active_accounts = CitiusAccount.objects.filter(is_active=True)
-    
-    if not active_accounts.exists():
-        logger.warning("No active Citius accounts found. Please add accounts in the management interface.")
-        return 0
-    
-    # Create the Chrome driver
-    driver = get_chrome_driver()
-    driver.implicitly_wait(60)
-    driver.set_page_load_timeout(300)  # Increase timeout to 5 minutes
-
-    total_insert_count = 0
-    
-    try: 
-        try:
-            logger.info("Attempting to create Supabase client...")
-            supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
-            logger.info("Successfully created Supabase client")
-        except Exception as e:
-            logger.error(f"Failed to create Supabase client: {str(e)}")
-            raise
-        
-        # Process each account
-        for account in active_accounts:
-            logger.info(f"Processing account: {account.username}")
-            
-            try:
-                # Process this specific account
-                insert_count, new_not, email = process_account(driver, supabase, account)
-                total_insert_count += insert_count
-                
-                # Update last_used timestamp
-                account.last_used = datetime.now()
-                account.save()
-                
-            except Exception as e:
-                logger.error(f"Error processing account {account.username}: {str(e)}")
-                # Continue with next account
-                
-            if new_not:
-                # Prepare the email subject and body content
-                subject = "Novas notificações Citius"
-                body = f"Tem {len(new_not)} novas notificações:\n\n"
-                
-                # Add details of each new notification to the body
-                for notification in new_not:
-                    # "acto", "tribunal" e "unid orgânica";
-                    body += f"Responsável - {safe_text(notification['advogado'])} - {safe_text(notification['especie'])} - {safe_text(notification['acto'])} - {safe_text(notification['tribunal'])} - {safe_text(notification['unidade'])} - {safe_text(notification['origem'])} - {safe_text(notification['data'])}\n"
-                
-                # Send the email with new notifications
-                send_email(subject, body, email)
-                
-        return total_insert_count, new_not
-        
-    except Exception as e:
-        logger.error(f"Error during scraping: {str(e)}")
-        raise
-    finally:
-        # Always close the driver
-        driver.quit()
-        logger.info("Closed WebDriver")
-
 def safe_text(text):
     if isinstance(text, str):
         return text.replace("-", "/")  # Usando hífen não-quebrável (non-breaking hyphen)
     return text
 
-def send_email(subject, body, recipient_email):
+def send_email(subject, body, recipient_data):
     """
     Send a professional HTML email using AWS SES with responsive design and formatting
     
     Args:
         subject (str): Email subject
         body (str): Raw notification text content
-        recipient_email (str): Recipient email address
+        recipient_data (dict): Dictionary containing primary and additional emails
     """
     import boto3
     from botocore.exceptions import ClientError
@@ -145,13 +83,35 @@ def send_email(subject, body, recipient_email):
     
     logger = logging.getLogger(__name__)
     
-    # Ensure email is extracted as a string from Supabase response
-    if hasattr(recipient_email, 'data') and isinstance(recipient_email.data, list) and len(recipient_email.data) > 0:
-        recipient_email = recipient_email.data[0].get('email', None)
+    # Lista para armazenar todos os emails de destino
+    all_recipient_emails = []
+    
+    # Processar email principal
+    primary_email = recipient_data.get('primary')
+    if primary_email and isinstance(primary_email, dict) and 'data' in primary_email:
+        primary_data = primary_email['data']
+        if isinstance(primary_data, list) and len(primary_data) > 0:
+            primary = primary_data[0].get('email')
+            if primary and isinstance(primary, str) and '@' in primary:
+                all_recipient_emails.append(primary)
 
-    if not isinstance(recipient_email, str):
-        logger.error(f"Invalid email format after extraction: {recipient_email}")
-        return
+    # Processar emails adicionais
+    additional_emails = recipient_data.get('additional')
+    if additional_emails and isinstance(additional_emails, dict) and 'data' in additional_emails:
+        for email_obj in additional_emails['data']:
+            email = email_obj.get('email')
+            if email and isinstance(email, str) and '@' in email:
+                all_recipient_emails.append(email)
+                
+    # Se não houver emails válidos, registre erro e retorne
+    if not all_recipient_emails:
+        logger.error(f"Nenhum email válido encontrado para envio: {recipient_data}")
+        return False
+    
+    # Remove duplicatas
+    all_recipient_emails = list(set(all_recipient_emails))
+    
+    logger.info(f"Enviando email para {len(all_recipient_emails)} destinatários: {all_recipient_emails}")
     
     # Create SES client
     client = boto3.client(
@@ -373,10 +333,10 @@ def send_email(subject, body, recipient_email):
     text_body += f"© {datetime.now().year} Soft Solutions. Todos os direitos reservados."
     
     try:
-        # Send email with both HTML and plain text versions
+        '''# Send email with both HTML and plain text versions
         response = client.send_email(
             Source='no-reply@softsolutions.com.pt',
-            Destination={'ToAddresses': [recipient_email]},
+            Destination={'ToAddresses': all_recipient_emails},  # Agora usando a lista de todos os emails
             Message={
                 'Subject': {'Data': subject},
                 'Body': {
@@ -384,79 +344,186 @@ def send_email(subject, body, recipient_email):
                     'Html': {'Data': html_content}
                 }
             }
-        )
-        logger.info(f"Email enviado com sucesso: {response['MessageId']}")
+        )'''
+        logger.info(f"Enviando email para: {all_recipient_emails}")
+        #logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
         return True
     except ClientError as e:
         logger.error(f"Falha ao enviar o email: {str(e)}")
-        return False 
-     
+        return False
+
+def scrape_citius_data():
+    """Scrape data from Citius for all active accounts"""
+
+    active_accounts = CitiusAccount.objects.filter(is_active=True, advogado="Tiago")
+    
+    if not active_accounts.exists():
+        logger.warning("No active Citius accounts found. Please add accounts in the management interface.")
+        return 0
+    
+    # Create the Chrome driver
+    driver = get_chrome_driver()
+    driver.implicitly_wait(60)
+    driver.set_page_load_timeout(300)  # Increase timeout to 5 minutes
+
+    total_insert_count = 0
+    
+    try: 
+        try:
+            logger.info("Attempting to create Supabase client...")
+            supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SECRET_KEY)
+            logger.info("Successfully created Supabase client")
+        except Exception as e:
+            logger.error(f"Failed to create Supabase client: {str(e)}")
+            raise
+        
+        # Process each account
+        for account in active_accounts:
+            logger.info(f"Processing account: {account.username}")
+            
+            try:
+                # Process this specific account
+                insert_count, new_not, email_data = process_account(driver, supabase, account)
+                total_insert_count += insert_count
+                
+                # Update last_used timestamp
+                account.last_used = datetime.now()
+                account.save()
+                
+            except Exception as e:
+                logger.error(f"Error processing account {account.username}: {str(e)}")
+                # Continue with next account
+                
+            if new_not:
+                # Prepare the email subject and body content
+                subject = "Novas notificações Citius"
+                body = f"Tem {len(new_not)} novas notificações:\n\n"
+                
+                # Add details of each new notification to the body
+                for notification in new_not:
+                    # "acto", "tribunal" e "unid orgânica";
+                    body += f"Responsável - {safe_text(notification['advogado'])} - {safe_text(notification['especie'])} - {safe_text(notification['acto'])} - {safe_text(notification['tribunal'])} - {safe_text(notification['unidade'])} - {safe_text(notification['origem'])} - {safe_text(notification['data'])}\n"
+                
+                # Send the email with new notifications to todos os emails associados
+                send_email(subject, body, email_data)
+                
+        return total_insert_count, new_not
+        
+    except Exception as e:
+        logger.error(f"Error during scraping: {str(e)}")
+        raise
+    finally:
+        # Always close the driver
+        driver.quit()
+        logger.info("Closed WebDriver")
+
+
 def process_account(driver, supabase, account):
     """Process a single Citius account with document download and storage"""
     insert_count = 0
-    new_not = []
+    new_not = []  # Initialize it early so it's always defined
     
     try:
         logger.info("trying to get login")
-        # Open the login page
+        # Open the login page with explicit timeout
+        driver.set_page_load_timeout(45)  # Timeout mais curto
         driver.get("https://citius.tribunaisnet.mj.pt/habilus/myhabilus/Login.aspx")
+        time.sleep(5)
         logger.info(f"Navigated to Citius login page for {account.username}")
 
         # Find username/email input field and enter credentials
         username_field = driver.find_element(By.ID, "txtUserName")
         username_field.clear()  # Clear any existing text
         username_field.send_keys(account.username)
+        time.sleep(1)  # Small pause after typing username
 
         # Find password input field and enter password
         password_field = driver.find_element(By.ID, "txtUserPass")
         password_field.clear()  # Clear any existing text
         password_field.send_keys(account.password)
+        time.sleep(1)  # Small pause after typing password
 
-        password_field.send_keys(Keys.RETURN)  # Press Enter
-        logger.info(f"Logged in to Citius with {account.username}")
-        
-        # Check for login errors
+        # Submit the form explicitly using the submit button instead of Enter key
         try:
-            WebDriverWait(driver, 5).until(
+            submit_button = driver.find_element(By.ID, "LoginButton")
+            submit_button.click()
+        except:
+            # Fall back to Enter key if button not found
+            password_field.send_keys(Keys.RETURN)
+            
+        logger.info(f"Login submitted for {account.username}")
+        
+        # Check for login errors with increased timeout
+        try:
+            WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".alert-danger, #errorMessage"))
             )
             error_element = driver.find_element(By.CSS_SELECTOR, ".alert-danger, #errorMessage")
             logger.error(f"Login failed for {account.username}: {error_element.text}")
-            return 0, [], None
+            return 0, new_not, None  # Return the initialized empty list
         except:
             # No error found, continue
-            pass
+            logger.info("No login errors detected, continuing")
+        
+        # Wait for page to load after login with explicit timeout
+        logger.info("Waiting for page to load after login...")
+        
+        # Use a more reliable way to determine if login was successful
+        try:
+            WebDriverWait(driver, 45).until(
+                EC.presence_of_element_located((By.ID, "ctl00_ctl00_Conteudo_Menu1_NotificacoesCitacoesAlert1_lnkMessage"))
+            )
+            logger.info(f"Successfully logged in to Citius with {account.username}")
+        except Exception as e:
+            logger.error(f"Timeout waiting for login to complete: {str(e)}")
+            # Take a screenshot for debugging
+            try:
+                screenshot_file = f"/tmp/citius_login_timeout_{account.username}_{int(time.time())}.png"
+                driver.save_screenshot(screenshot_file)
+                logger.info(f"Saved screenshot to {screenshot_file}")
+            except Exception as ss_error:
+                logger.error(f"Failed to save screenshot: {str(ss_error)}")
+            
+            # Return early with empty results
+            return 0, new_not, None
         
         # Wait for notifications link and click
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "ctl00_ctl00_Conteudo_Menu1_NotificacoesCitacoesAlert1_lnkMessage"))
-        )
+        logger.info("Finding and clicking notifications link...")
         link_field = driver.find_element(By.ID, "ctl00_ctl00_Conteudo_Menu1_NotificacoesCitacoesAlert1_lnkMessage")
-        link_field.click()
-        logger.info("Navigated to notifications page")
+        driver.execute_script("arguments[0].click();", link_field)  # Use JavaScript click which can be more reliable
+        logger.info("Clicked on notifications link")
+        time.sleep(5)  # Added wait after clicking
         
-        # Click on "Todas" to view all notifications
-        linkTodas_field = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "ctl00_ctl00_Conteudo_cpHabilus_spanTodas"))
-        )
-        linkTodas_field.click()
-        logger.info("Clicked on 'Todas' to view all notifications")
+        # Click on "Todas" to view all notifications with explicit wait
+        logger.info("Waiting for 'Todas' link...")
+        try:
+            linkTodas_field = WebDriverWait(driver, 30).until(
+                EC.element_to_be_clickable((By.ID, "ctl00_ctl00_Conteudo_cpHabilus_spanTodas"))
+            )
+            driver.execute_script("arguments[0].click();", linkTodas_field)  # Use JavaScript click
+            logger.info("Clicked on 'Todas' to view all notifications")
+        except Exception as e:
+            logger.error(f"Timeout waiting for 'Todas' link: {str(e)}")
+            # Continue anyway, maybe we can still get data
         
         # Give page time to load
-        time.sleep(3)
+        logger.info("Waiting for notifications to load...")
+        time.sleep(10)
         
-        prelink = "https://citius.tribunaisnet.mj.pt"
-        
-        # Get all notification rows
-        rows = driver.find_elements(By.XPATH, '//tr[@style="color:#000066;height:20px;"]')
-        logger.info(f"Found {len(rows)} notification rows for {account.username}")
+        # Get all notification rows with a try/except
+        try:
+            rows = driver.find_elements(By.XPATH, '//tr[@style="color:#000066;height:20px;"]')
+            logger.info(f"Found {len(rows)} notification rows for {account.username}")
+        except Exception as e:
+            logger.error(f"Error finding notification rows: {str(e)}")
+            rows = []  # Use empty list if no rows found
         
         # Define database field names
         db_fields = [
             "origem", "data", "acto", "doc", 
-            "tribunal", "unidade", "processo", "especie", "referencia", "user_id"
+            "tribunal", "unidade", "processo", "especie", "referencia", "user_id", "created_at"
         ]
-        
+        logger.info(f"Database fields: {db_fields}")
         # Loop through each row and extract data
         for row in rows:
             try:
@@ -478,6 +545,8 @@ def process_account(driver, supabase, account):
                 row_dict["user_id"] = account.user_id
                 logger.info(f"Added user_id to row_dict: {row_dict['user_id']}")
 
+                row_dict["created_at"] = timezone.now().isoformat()
+
                 # Find the popup link and extract the URL
                 doc_url = "em breve"
                 row_dict["doc"] = doc_url
@@ -491,8 +560,6 @@ def process_account(driver, supabase, account):
                     .execute()
                 )                
                 
-                email = supabase.table('api_citiusaccount').select('email').eq('username',account.username).execute() 
-                
                 if len(existing.data) == 0:
                     # Insert new record
                     result = supabase.table('api_processo').insert(row_dict).execute()
@@ -501,18 +568,34 @@ def process_account(driver, supabase, account):
                     if result.data:
                         insert_count += 1
                         logger.info(f"Inserted notification with referência: {row_dict['referencia']} for {account.advogado}")
+                else:
+                    logger.info(f"Record already exists for referência: {row_dict['referencia']}, exiting count: {len(existing.data)}")
+                
+
             except Exception as e:
                 logger.error(f"Error processing row: {str(e)}")
         
         logger.info(f"Account {account.username} processing completed. Inserted {insert_count} new notifications.")
-        return insert_count, new_not, email
+        primary_email = {"data": [{"email": account.email}]} if account.email else {"data": []}
+        logger.info(f"Primary email for account {account.username}: {primary_email}")
+        
+        # Get additional emails using Django directly instead of Supabase query
+        from .models import CitiusAccountEmail
+        additional_email_objects = CitiusAccountEmail.objects.filter(account=account, is_active=True)
+        additional_emails = {
+            "data": [{"email": email_obj.email} for email_obj in additional_email_objects]
+        }
+        logger.info(f"Additional emails for account {account.username}: {additional_emails}")
+        
+        # Create email data object with the correct emails for this account
+        email_data = {'primary': primary_email, 'additional': additional_emails}
+        
+        return insert_count, new_not, email_data
         
     except Exception as e:
         logger.error(f"Error processing account {account.username}: {str(e)}")
-        # Re-raise to be caught by the main function
-        raise
-    
-    # Add this function to your scraping.py or webscrapping.py file
+        return 0, new_not, None
+
 def test_citius_login(username, password):
     """Test Citius login credentials without scraping data"""
     # Initialize options for the Chrome driver

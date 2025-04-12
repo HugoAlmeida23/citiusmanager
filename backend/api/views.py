@@ -14,12 +14,16 @@ import json
 import logging
 import tempfile
 import os
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from .models import CitiusAccount
 from .serializers import CitiusAccountSerializer
 from .tasks import scheduled_citius_scrape, test_citius_account
 from django.http import HttpResponse
 from .whisper import audio_to_text
+from .models import CitiusAccountEmail
+from .serializers import CitiusAccountEmailSerializer
+from rest_framework import status
+
 
 logger = logging.getLogger('citius-app')
 
@@ -32,6 +36,100 @@ supabase: Client = create_client(
 
 logger = logging.getLogger('citius-app')
 
+
+# Adicione essa classe ao arquivo views.py
+class CitiusAccountEmailViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing additional emails for Citius accounts
+    """
+    serializer_class = CitiusAccountEmailSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = CitiusAccountEmail.objects.all()
+    
+    def get_queryset(self):
+        # Filtrar por usuário atual através da conta associada
+        return CitiusAccountEmail.objects.filter(account__user=self.request.user)
+    
+    def perform_create(self, serializer):
+        # Garantir que a conta pertence ao usuário atual
+        account_id = self.request.data.get('account')
+        if account_id:
+            try:
+                account = CitiusAccount.objects.get(id=account_id, user=self.request.user)
+                serializer.save(account=account)
+            except CitiusAccount.DoesNotExist:
+                raise serializers.ValidationError("Conta Citius não encontrada ou não pertence ao usuário atual")
+        else:
+            raise serializers.ValidationError("É necessário especificar uma conta Citius")
+
+# Endpoint para gerenciar emails de uma conta específica
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def account_emails(request, account_id):
+    """
+    GET: Lista todos os emails adicionais de uma conta
+    POST: Adiciona um novo email a uma conta
+    DELETE: Remove um email de uma conta
+    """
+    try:
+        account = CitiusAccount.objects.get(id=account_id, user=request.user)
+    except CitiusAccount.DoesNotExist:
+        return Response(
+            {"error": "Conta Citius não encontrada ou não pertence ao usuário atual"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    if request.method == 'GET':
+        emails = CitiusAccountEmail.objects.filter(account=account)
+        serializer = CitiusAccountEmailSerializer(emails, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == 'POST':
+        # Adicionar email à conta
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {"error": "O campo 'email' é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar se já existe
+        if CitiusAccountEmail.objects.filter(account=account, email=email).exists():
+            return Response(
+                {"error": "Este email já está registrado para esta conta"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        new_email = CitiusAccountEmail.objects.create(
+            account=account,
+            email=email,
+            is_active=request.data.get('is_active', True)
+        )
+        
+        serializer = CitiusAccountEmailSerializer(new_email)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    elif request.method == 'DELETE':
+        # Remover email da conta
+        email_id = request.data.get('email_id')
+        
+        if not email_id:
+            return Response(
+                {"error": "O campo 'email_id' é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            email_obj = CitiusAccountEmail.objects.get(id=email_id, account=account)
+            email_obj.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except CitiusAccountEmail.DoesNotExist:
+            return Response(
+                {"error": "Email não encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
 @csrf_exempt
 def upload_audio(request):
     """
@@ -196,8 +294,15 @@ class ProcessoListCreate(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Only return objects that belong to the current user
-        return Processo.objects.filter(user=self.request.user)
+        # Ordenar por created_at (se existir) ou por id em ordem decrescente
+        queryset = Processo.objects.filter(user=self.request.user)
+        
+        if 'created_at' in [field.name for field in Processo._meta.get_fields()]:
+            # Se o campo created_at existe
+            return queryset.order_by('-created_at')
+        else:
+            # Fallback para ordenação por ID
+            return queryset.order_by('-id')
     
     def perform_create(self, serializer):
         # Automatically set the user field to the current user

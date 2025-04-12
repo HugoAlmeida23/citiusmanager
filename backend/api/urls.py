@@ -5,6 +5,8 @@ from . import views
 # Create a router for ViewSets
 router = DefaultRouter()
 router.register(r'citius-accounts', views.CitiusAccountViewSet)
+router.register(r'account-emails', views.CitiusAccountEmailViewSet)
+
 
 urlpatterns = [
     path("processos/", views.ProcessoListCreate.as_view(), name="processo-list"),
@@ -15,4 +17,6 @@ urlpatterns = [
     path('upload/', views.upload_audio, name='upload_audio'),
     path('download/', views.download_transcription, name='download_transcription'),
     path('', include(router.urls)),  # Include router URLs directly without 'api/' prefix
+    path('citius-accounts/<int:account_id>/emails/', views.account_emails, name='account-emails'),
+
 ]

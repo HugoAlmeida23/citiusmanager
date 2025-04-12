@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+
 class Processo(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='processos', default="1")
     
@@ -20,6 +21,9 @@ class Processo(models.Model):
     document_size = models.IntegerField(blank=True, null=True)  # Size in bytes
     last_accessed = models.DateTimeField(blank=True, null=True)  # Track when document was last accessed
     
+    # Novo campo para timestamp de criação
+    created_at = models.DateTimeField(auto_now_add=True)
+    
     def __str__(self):
         return self.acto
 
@@ -37,3 +41,15 @@ class CitiusAccount(models.Model):
     
     def __str__(self):
         return f"{self.username} ({self.advogado})"
+    
+class CitiusAccountEmail(models.Model):
+    account = models.ForeignKey(CitiusAccount, on_delete=models.CASCADE, related_name='additional_emails')
+    email = models.EmailField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['account', 'email']  # Evitar duplicatas
+        
+    def __str__(self):
+        return f"{self.email} ({self.account.username})"

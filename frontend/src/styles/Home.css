@@ -1014,7 +1014,7 @@ button.apply-columns:hover {
 }
 
 .filter-button:hover {
-  background-color: #1d4ed8; /* hover:bg-blue-700 */
+  background-color: #1d4ed8; /*  */
 }
 
 .filter-button:focus {
@@ -1083,4 +1083,1343 @@ button.apply-columns:hover {
     justify-content: center;
     margin-top: 0.5rem;
   }
+}
+
+/* Estilos adicionais para Account.jsx */
+
+/* Espaçamento */
+.space-y-1 > * + * {
+  margin-top: 0.25rem;
+}
+
+.space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+
+.space-x-2 > * + * {
+  margin-left: 0.5rem;
+}
+
+.mt-3 {
+  margin-top: 0.75rem;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+.mr-1 {
+  margin-right: 0.25rem;
+}
+
+.md\:col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+.h-0 {
+  height: 0;
+}
+
+/* Cores de fundo e interações */
+.hover\:bg-blue-50:hover {
+  background-color: #eff6ff;
+}
+
+.hover\:bg-blue-100:hover {
+  background-color: #dbeafe;
+}
+
+.hover\:bg-blue-600:hover {
+  background-color: #2563eb;
+}
+
+.hover\:bg-gray-400:hover {
+  background-color: #9ca3af;
+}
+
+.hover\:bg-gray-50:hover {
+  background-color: #f9fafb;
+}
+
+.hover\:bg-green-600:hover {
+  background-color: #059669;
+}
+
+.hover\:text-blue-800:hover {
+  color: #1e40af;
+}
+
+.hover\:text-red-700:hover {
+  color: #b91c1c;
+}
+
+.hover\:text-green-700:hover {
+  color: #047857;
+}
+
+.focus\:ring-blue-500:focus {
+  --tw-ring-opacity: 1;
+  --tw-ring-color: rgba(59, 130, 246, var(--tw-ring-opacity));
+}
+
+/* Bordas */
+.border-t-0 {
+  border-top-width: 0;
+}
+
+.border-t {
+  border-top-width: 1px;
+}
+
+.border-gray-100 {
+  border-color: #f3f4f6;
+}
+
+.border-gray-200 {
+  border-color: #e5e7eb;
+}
+
+.border-green-500 {
+  border-color: #10b981;
+}
+
+.border-red-500 {
+  border-color: #ef4444;
+}
+
+/* Estilos de texto */
+.text-red-500 {
+  color: #ef4444;
+}
+
+.text-red-700 {
+  color: #b91c1c;
+}
+
+.text-green-700 {
+  color: #047857;
+}
+
+.italic {
+  font-style: italic;
+}
+
+/* Inputs e forms */
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+input[type="email"] {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  width: 100%;
+}
+
+/* Flexibilidade e display */
+.inline {
+  display: inline;
+}
+
+.col-span-7 {
+  grid-column: span 7 / span 7;
+}
+
+/* Layout de tabela específico */
+.border-t-0 {
+  border-top-width: 0;
+}
+
+.p-0 {
+  padding: 0;
+}
+
+/* Para linhas do tbody que estão expandidas */
+tr.h-4 {
+  height: 1rem;
+}
+
+tr.h-4 td {
+  padding: 0;
+}
+
+/* Transição de exibição para elementos que aparecem e desaparecem */
+.transition-display {
+  transition: all 0.3s ease;
+}
+
+/* Expandir/colapsar efeitos */
+.expand-collapse {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.expanded {
+  max-height: 1000px;
+}
+
+/* Estado de carregamento para botões */
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Para botões disabled */
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Estilos para o overlay de edição */
+.editing-overlay {
+  background-color: rgba(243, 244, 246, 0.5);
+}
+
+/* Ajustes para dispositivos móveis */
+@media (max-width: 640px) {
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .px-6 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* Estilos específicos para gerenciamento de emails em Account.jsx */
+
+/* Estilos para a seção de emails adicionais */
+.email-management-section {
+  background-color: #f9fafb;
+  border-radius: 0.25rem;
+  padding: 1rem;
+  margin-top: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+/* Botão para alternar exibição dos emails */
+.toggle-emails-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-size: 0.75rem;
+  color: #2563eb;
+  padding: 0.5rem 1rem;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.toggle-emails-button:hover {
+  color: #1e40af;
+  background-color: #eff6ff;
+}
+
+/* Estilização para o botão ativo */
+.toggle-emails-button.active {
+  background-color: #dbeafe;
+}
+
+/* Lista de emails adicionais */
+.emails-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.email-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  padding: 0.5rem;
+}
+
+.email-list-item:hover {
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+}
+
+.email-text {
+  display: flex;
+  align-items: center;
+  color: #374151;
+}
+
+.email-icon {
+  margin-right: 0.25rem;
+  color: #2563eb;
+}
+
+/* Formulário para adicionar novo email */
+.add-email-form {
+  display: flex;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.add-email-input {
+  flex: 1;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+}
+
+.add-email-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5);
+}
+
+.add-email-button {
+  background-color: #10b981;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.add-email-button:hover {
+  background-color: #059669;
+}
+
+.cancel-email-button {
+  background-color: #9ca3af;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.cancel-email-button:hover {
+  background-color: #6b7280;
+}
+
+/* Botão para remover email */
+.remove-email-button {
+  display: flex;
+  align-items: center;
+  color: #ef4444;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.remove-email-button:hover {
+  color: #b91c1c;
+}
+
+/* Estilização para a área de múltiplos emails na criação de conta */
+.multiple-emails-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  background-color: white;
+  margin-bottom: 0.75rem;
+}
+
+.multiple-emails-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.multiple-emails-toggle {
+  background-color: #2563eb;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.multiple-emails-toggle:hover {
+  background-color: #1d4ed8;
+}
+
+.email-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: #f9fafb;
+  border-radius: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-emails-message {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+/* Estilos para botões e elementos interativos em Account.jsx */
+
+/* Botão para alternar visualização de senha */
+.password-toggle-button {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+}
+
+.password-toggle-button:hover {
+  color: #6b7280;
+}
+
+/* Estilo para inputs */
+.input-field {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+/* Botões de ação */
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.action-button-icon {
+  margin-right: 0.5rem;
+}
+
+/* Botões principais */
+.primary-button {
+  background-color: #2563eb;
+  color: white;
+}
+
+.primary-button:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.secondary-button {
+  background-color: #4b5563;
+  color: white;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background-color: #374151;
+}
+
+.success-button {
+  background-color: #10b981;
+  color: white;
+}
+
+.success-button:hover:not(:disabled) {
+  background-color: #059669;
+}
+
+.danger-button {
+  background-color: #ef4444;
+  color: white;
+}
+
+.danger-button:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+/* Botões de edição na tabela */
+.table-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 9999px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.table-action-button:hover {
+  background-color: #eff6ff;
+}
+
+.edit-button:hover {
+  color: #1d4ed8;
+}
+
+.delete-button {
+  color: #ef4444;
+}
+
+.delete-button:hover {
+  color: #dc2626;
+  background-color: #fee2e2;
+}
+
+.save-button {
+  color: #10b981;
+}
+
+.save-button:hover {
+  color: #059669;
+  background-color: #d1fae5;
+}
+
+/* Badges para status */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  line-height: 1.25;
+}
+
+.active-badge {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.inactive-badge {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Animação de loading para botões */
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+/* Área de formulário */
+.form-section {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  gap: 0.5rem;
+}
+
+/* Checkbox customizado */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-input {
+  height: 1rem;
+  width: 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+}
+
+.checkbox-input:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.checkbox-label {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+/* Conjunto completo de estilos para Account.jsx */
+
+/* Estilos de Layout Base */
+.content-container {
+  padding-top: 1%;
+  width: 100%;
+}
+
+/* Estilo para o contêiner principal da tabela */
+.account-container {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  margin-left: 5%;
+  margin-right: 5%;
+  margin-top: 5%;
+}
+
+/* Cabeçalho da seção */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Estilos específicos para mensagens de erro e resultados de teste */
+.error-message {
+  background-color: #fee2e2;
+  border-left: 4px solid #ef4444;
+  color: #b91c1c;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.success-message {
+  background-color: #d1fae5;
+  border-left: 4px solid #10b981;
+  color: #065f46;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dismiss-button {
+  font-size: 0.875rem;
+  text-decoration: underline;
+  margin-top: 0.25rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+/* Formulário de adicionar conta */
+.add-account-form {
+  background-color: #f9fafb;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.form-header {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.form-group {
+  margin-bottom: 0.5rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.password-input-container {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: #6b7280;
+}
+
+.form-checkbox-container {
+  display: flex;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.form-checkbox {
+  height: 1rem;
+  width: 1rem;
+  border-radius: 0.25rem;
+  border-color: #d1d5db;
+}
+
+.form-checkbox:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.checkbox-label {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Botões principais */
+.btn {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary {
+  background-color: #2563eb;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.btn-secondary {
+  background-color: #4b5563;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #374151;
+}
+
+.btn-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #059669;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  margin-right: 0.5rem;
+}
+
+.mr-2 {
+  margin-right: 0.5rem;
+}
+
+/* Estilos para tabela */
+.accounts-table-container {
+  overflow-x: auto;
+}
+
+.accounts-table {
+  min-width: 100%;
+  background-color: white;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-header {
+  background-color: #f9fafb;
+}
+
+.table-header th {
+  padding: 0.75rem 1.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.table-body tr {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-body tr:last-child {
+  border-bottom: none;
+}
+
+.table-body td {
+  padding: 1rem 1.5rem;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: #111827;
+}
+
+.td-border-none {
+  border: none;
+  padding: 0;
+}
+
+/* Botões de ação na tabela */
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.edit-btn {
+  color: #2563eb;
+}
+
+.edit-btn:hover {
+  background-color: #eff6ff;
+}
+
+.delete-btn {
+  color: #ef4444;
+}
+
+.delete-btn:hover {
+  background-color: #fee2e2;
+}
+
+.test-btn {
+  color: #4b5563;
+}
+
+.test-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.save-btn {
+  color: #10b981;
+}
+
+.save-btn:hover {
+  color: #059669;
+}
+
+.cancel-btn {
+  color: #4b5563;
+}
+
+.cancel-btn:hover {
+  color: #1f2937;
+}
+
+/* Status badge */
+.status-badge {
+  display: inline-flex;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.status-active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-inactive {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* Emails adicionais relacionados */
+.email-toggle-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  font-size: 0.75rem;
+  color: #2563eb;
+  padding: 0.5rem 1.5rem;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.email-toggle-button:hover {
+  color: #1e40af;
+  background-color: #eff6ff;
+}
+
+.email-management-section {
+  padding: 0.5rem 1.5rem;
+  background-color: #f9fafb;
+}
+
+.email-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.email-section-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.add-email-btn {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  background-color: #2563eb;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.add-email-btn:hover {
+  background-color: #1d4ed8;
+}
+
+.add-email-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.email-input {
+  flex: 1;
+  font-size: 0.875rem;
+  padding: 0.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+}
+
+.add-email-submit {
+  background-color: #10b981;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.add-email-submit:hover {
+  background-color: #059669;
+}
+
+.add-email-cancel {
+  background-color: #9ca3af;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.add-email-cancel:hover {
+  background-color: #6b7280;
+}
+
+.email-list {
+  margin-top: 0.25rem;
+}
+
+.email-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  padding: 0.25rem 0;
+}
+
+.email-display {
+  display: flex;
+  align-items: center;
+  color: #374151;
+}
+
+.email-icon {
+  margin-right: 0.25rem;
+  color: #2563eb;
+}
+
+.remove-email-btn {
+  color: #ef4444;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.remove-email-btn:hover {
+  color: #b91c1c;
+}
+
+.no-emails-message {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Área de múltiplos emails no formulário de adição */
+.additional-emails-section {
+  grid-column: span 2 / span 2;
+  margin-top: 0.75rem;
+}
+
+.additional-emails-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.additional-emails-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.toggle-additional-emails {
+  font-size: 0.75rem;
+  background-color: #2563eb;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+}
+
+.toggle-additional-emails:hover {
+  background-color: #1d4ed8;
+}
+
+.additional-emails-container {
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  background-color: white;
+  margin-bottom: 0.75rem;
+}
+
+.additional-email-input-container {
+  display: flex;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.additional-email-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.additional-email-add-btn {
+  display: flex;
+  align-items: center;
+  background-color: #10b981;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.additional-email-add-btn:hover {
+  background-color: #059669;
+}
+
+.additional-emails-list {
+  margin-top: 0.5rem;
+}
+
+.additional-email-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background-color: #f9fafb;
+  margin-bottom: 0.5rem;
+}
+
+.additional-email-text {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+/* Animação de loading */
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s infinite linear;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Espaçamentos adicionais */
+.space-x-2 > * + * {
+  margin-left: 0.5rem;
+}
+
+.space-y-1 > * + * {
+  margin-top: 0.25rem;
+}
+
+.space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Estado vazio para tabela */
+.empty-state {
+  text-align: center;
+  padding: 2rem 0;
+  color: #6b7280;
+}
+
+/* Animação de transição */
+.transition {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Estados de hover para links */
+.hover\:bg-blue-50:hover {
+  background-color: #eff6ff;
+}
+
+.hover\:bg-blue-100:hover {
+  background-color: #dbeafe;
+}
+
+.hover\:bg-red-100:hover {
+  background-color: #fee2e2;
+}
+
+.hover\:bg-green-100:hover {
+  background-color: #d1fae5;
+}
+
+.hover\:bg-gray-100:hover {
+  background-color: #f3f4f6;
+}
+
+.hover\:text-blue-800:hover {
+  color: #1e40af;
+}
+
+.hover\:text-red-700:hover {
+  color: #b91c1c;
+}
+
+.hover\:text-gray-600:hover {
+  color: #4b5563;
+}
+
+/* Media queries para responsividade */
+@media (max-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  
+  .md\:col-span-2 {
+    grid-column: span 1 / span 1;
+  }
+  
+  .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .table-actions {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .account-container {
+    margin-left: 1rem;
+    margin-right: 1rem;
+    padding: 1rem;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+.custom-button {
+  background-color: #2563eb; /* bg-blue-600 */
+  color: #ffffff; /* text-white */
+  padding: 0.25rem 0.75rem; /* px-3 py-1 */
+  border-radius: 9999px; /* rounded-full */
+  display: flex; /* flex */
+  align-items: center; /* items-center */
+  transition-property: background-color; /* transition-colors */
+  transition-duration: 200ms; /* duration-200 */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+}
+
+.custom-button:hover {
+  background-color: #1d4ed8; /* hover:bg-blue-700 */
 }
