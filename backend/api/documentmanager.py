@@ -288,24 +288,45 @@ def download_document(driver, doc_info):
     Tenta baixar o(s) documento(s) de uma notificação.
     Suporta múltiplos documentos/anexos usando ambos os dropdowns disponíveis.
     """
-    logger.info(f"Tentando baixar documento(s) para: {doc_info['acto']} - {doc_info['referencia']}")
+    logger.info(f"Tentando baixar documento(s) para: {doc_info['acto']} - {doc_info['referencia']} - Origem: {doc_info.get('origem', 'N/A')}")
+    
+    # Special handling for "Mandatário" origin
+    is_mandatario = doc_info.get('origem') == "Mandatário"
+    if is_mandatario:
+        logger.info("Detectado documento com origem 'Mandatário'. Usando abordagem alternativa.")
     
     current_url = driver.current_url
     
     # Definir timeout mais curto para este processamento específico
     original_timeout = driver.timeouts.page_load
-    driver.set_page_load_timeout(30)  # 30 segundos máximo
+    # Longer timeout for Mandatário documents
+    driver.set_page_load_timeout(60 if is_mandatario else 30)
 
     try:
-        # Salvar a URL atual para voltar depois
-      
-        
+        # Navegar para a URL do popup com tratamento especial para Mandatário
         try:
-            driver.get(doc_info['doc_url'])
             logger.info(f"Navegando para a URL do popup: {doc_info['doc_url']}")
-            time.sleep(3)
+            driver.get(doc_info['doc_url'])
+            
+            # For Mandatário documents, wait longer and use different selectors
+            if is_mandatario:
+                time.sleep(5)  # Wait longer for Mandatário documents
+                # Ensure the page is fully loaded
+                WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
+            else:
+                time.sleep(3)
         except Exception as e:
             logger.warning(f"Timeout ao carregar popup: {str(e)}")
+            # Try to capture screenshot for debugging
+            try:
+                screenshot_path = f"/tmp/popup_timeout_{doc_info['referencia']}_{int(time.time())}.png"
+                driver.save_screenshot(screenshot_path)
+                logger.info(f"Screenshot salvo em {screenshot_path}")
+            except:
+                pass
+                
             # Tentar interromper carregamento
             try:
                 driver.execute_script("window.stop();")
@@ -316,6 +337,47 @@ def download_document(driver, doc_info):
         downloaded_documents = []
         all_document_urls = []
         
+        # For Mandatário documents, try direct download first
+        if is_mandatario:
+            try:
+                # Try to find download button directly - using a more flexible approach
+                download_links = driver.find_elements(By.XPATH, "//a[contains(@id, 'Download') or contains(@id, 'download')]")
+                
+                if download_links:
+                    for i, download_link in enumerate(download_links):
+                        try:
+                            pdf_url = download_link.get_attribute('href')
+                            if pdf_url and ('pdf' in pdf_url.lower() or 'download' in pdf_url.lower()):
+                                logger.info(f"Link de download direto encontrado para Mandatário: {pdf_url}")
+                                
+                                # Create a specific identifier
+                                doc_identifier = f"mandatario_{i+1}"
+                                
+                                # Download this specific document
+                                doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
+                                
+                                if doc_result['success']:
+                                    downloaded_documents.append(doc_result)
+                                    all_document_urls.append(doc_result['doc_url'] if 'doc_url' in doc_result else pdf_url)
+                                    logger.info(f"Documento Mandatário {i+1} baixado com sucesso")
+                                else:
+                                    logger.error(f"Falha ao baixar documento Mandatário {i+1}: {doc_result.get('error_message')}")
+                        except Exception as link_error:
+                            logger.error(f"Erro ao processar link de download Mandatário {i+1}: {str(link_error)}")
+                            continue
+                            
+                    # If we found and processed any documents, return now
+                    if downloaded_documents:
+                        # Return the first document as main and attach the list of all
+                        result = downloaded_documents[0].copy()
+                        result['all_documents'] = downloaded_documents
+                        result['all_document_urls'] = all_document_urls
+                        result['multi_document'] = True
+                        result['total_documents'] = len(downloaded_documents)
+                        return result
+            except Exception as direct_error:
+                logger.error(f"Erro ao tentar download direto para Mandatário: {str(direct_error)}")
+
         # PRIMEIRO: Verificar e processar o dropdown principal de anexos (dropDocs)
         try:
             # Localizar o dropdown principal de anexos
@@ -537,12 +599,75 @@ def download_document(driver, doc_info):
                         if doc_result['success']:
                             downloaded_documents.append(doc_result)
                             all_document_urls.append(doc_result['doc_url'] if 'doc_url' in doc_result else pdf_url)
-                    else:
-                        logger.warning("Botão de download encontrado, mas URL não obtida")
+                        else:
+                            logger.warning("Botão de download encontrado, mas URL não obtida")
                 
                 except NoSuchElementException:
                     logger.error("Botão de download não encontrado")
                     driver.save_screenshot("no_download_button.png")
+
+                # For Mandatário documents, try a more general approach if nothing else worked
+                if is_mandatario and not downloaded_documents:
+                    logger.info("Tentando abordagem alternativa para Mandatário...")
+                    try:
+                        # Try to find the iframe that contains the document
+                        iframe = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.ID, "ucActoView_ifrmDoc"))
+                        )
+                        iframe_src = iframe.get_attribute('src')
+                        
+                        if iframe_src:
+                            logger.info(f"Found iframe source: {iframe_src}")
+                            
+                            # Switch to the iframe
+                            driver.switch_to.frame(iframe)
+                            
+                            # Try to find PDF links inside the iframe
+                            pdf_links = driver.find_elements(By.XPATH, "//a[contains(@href, '.pdf') or contains(@href, 'download')]")
+                            
+                            if pdf_links:
+                                for i, link in enumerate(pdf_links):
+                                    try:
+                                        pdf_url = link.get_attribute('href')
+                                        if pdf_url:
+                                            logger.info(f"Found PDF link in iframe: {pdf_url}")
+                                            
+                                            # Download this document
+                                            doc_identifier = f"iframe_pdf_{i+1}"
+                                            doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
+                                            
+                                            if doc_result['success']:
+                                                downloaded_documents.append(doc_result)
+                                                all_document_urls.append(doc_result['doc_url'] if 'doc_url' in doc_result else pdf_url)
+                                                logger.info(f"Documento do iframe {i+1} baixado com sucesso")
+                                    except Exception as iframe_link_error:
+                                        logger.error(f"Error processing iframe link {i+1}: {str(iframe_link_error)}")
+                                        continue
+                                
+                                # Switch back to default content
+                                driver.switch_to.default_content()
+                            else:
+                                # If no PDF links in iframe, try to use the iframe source directly
+                                if ".pdf" in iframe_src.lower() or "download" in iframe_src.lower():
+                                    logger.info(f"Using iframe source as direct PDF: {iframe_src}")
+                                    
+                                    # Download using iframe source
+                                    doc_result = download_single_document(driver, iframe_src, "iframe_source", doc_info)
+                                    
+                                    if doc_result['success']:
+                                        downloaded_documents.append(doc_result)
+                                        all_document_urls.append(doc_result['doc_url'] if 'doc_url' in doc_result else iframe_src)
+                                        logger.info(f"Documento do iframe baixado com sucesso")
+                                
+                                # Switch back to default content
+                                driver.switch_to.default_content()
+                    except Exception as iframe_error:
+                        logger.error(f"Error processing iframe for Mandatário: {str(iframe_error)}")
+                        # Try to switch back to default content
+                        try:
+                            driver.switch_to.default_content()
+                        except:
+                            pass
         
         # Voltar para a página anterior
         driver.get(current_url)
@@ -557,11 +682,57 @@ def download_document(driver, doc_info):
             result['total_documents'] = len(downloaded_documents)
             return result
         else:
-            logger.error("Nenhum documento foi baixado com sucesso")
-            return {'success': False, 'error_message': "Nenhum documento foi baixado com sucesso"}
+            # Extra handling for Mandatário when no documents were found
+            if is_mandatario:
+                logger.info("No documents downloaded for Mandatário. Using fallback approach.")
+                
+                # Create a placeholder for Mandatário documents
+                # This prevents repeated failed attempts to download the same document
+                fallback_result = {
+                    'success': True, 
+                    'file_path': None,
+                    'file_type': 'html',
+                    'processo': doc_info['processo'],
+                    'referencia': doc_info['referencia'],
+                    'doc_identifier': 'mandatario_fallback',
+                    'doc_url': doc_info['doc_url'],  # Use the original URL
+                    'is_fallback': True,
+                    'mandatario_document': True
+                }
+                
+                # For database record
+                doc_metadata = {
+                    'processo': doc_info.get('processo', ''),
+                    'referencia': doc_info.get('referencia', ''),
+                    'doc': doc_info['doc_url'],  # Use original URL as doc link
+                    'document_stored': False,
+                    'document_type': 'mandatario',
+                    'mandatario_document': True,
+                    'download_attempted': True,
+                    'last_accessed': datetime.now().isoformat()
+                }
+                
+                # Create a result with fallback metadata
+                result = fallback_result.copy()
+                result['all_documents'] = [fallback_result]
+                result['all_document_urls'] = [doc_info['doc_url']]
+                result['multi_document'] = False
+                result['total_documents'] = 1
+                result['doc_metadata'] = doc_metadata
+                
+                return result
+            else:
+                logger.error("Nenhum documento foi baixado com sucesso")
+                return {'success': False, 'error_message': "Nenhum documento foi baixado com sucesso"}
     
     except Exception as e:
         logger.error(f"Erro ao baixar documento: {str(e)}")
+        # Take a screenshot for debugging
+        try:
+            driver.save_screenshot(f"/tmp/download_error_{doc_info['referencia']}_{int(time.time())}.png")
+        except:
+            pass
+            
         # Voltar para a página anterior
         try:
             driver.get(current_url)
@@ -573,7 +744,7 @@ def download_document(driver, doc_info):
     finally:
         # Restaurar timeout original
         driver.set_page_load_timeout(original_timeout)
-    
+           
 def download_single_document(driver, pdf_url, doc_identifier, doc_info):
     """Baixa um único documento a partir de uma URL direta."""
     try:

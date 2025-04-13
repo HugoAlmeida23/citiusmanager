@@ -136,35 +136,81 @@ def upload_audio(request):
     API view to handle audio file upload and transcription
     """
     if request.method == 'POST':
-        # Check if a file is in the request
-        if 'audio_file' not in request.FILES:
-            return JsonResponse({'error': 'No audio file provided'}, status=400)
-        
-        audio_file = request.FILES['audio_file']
-        
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.m4a') as temp_file:
-            # Write the uploaded file to the temporary file
-            for chunk in audio_file.chunks():
-                temp_file.write(chunk)
-            temp_file_path = temp_file.name
-        
+        temp_file_path = None
         try:
+            # Check if a file is in the request
+            if 'audio_file' not in request.FILES:
+                return JsonResponse({'error': 'No audio file provided'}, status=400)
+            
+            audio_file = request.FILES['audio_file']
+            
+            # Validate file size (limit to 100MB to prevent abuse)
+            if audio_file.size > 100 * 1024 * 1024:  # 100MB
+                return JsonResponse({
+                    'error': 'File too large. Maximum file size is 100MB.'
+                }, status=400)
+            
+            # Validate file type
+            valid_extensions = ['.mp3', '.m4a', '.wav', '.ogg', '.flac']
+            valid_mimetypes = ['audio/mp3', 'audio/mp4', 'audio/mpeg', 'audio/wav', 
+                            'audio/ogg', 'audio/flac', 'audio/x-m4a']
+                            
+            file_ext = os.path.splitext(audio_file.name)[1].lower()
+            if file_ext not in valid_extensions and audio_file.content_type not in valid_mimetypes:
+                return JsonResponse({
+                    'error': 'Invalid file type. Please upload an audio file (mp3, m4a, wav, ogg, flac).'
+                }, status=400)
+            
+            # Create a temporary file with the correct extension
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
+                # Write the uploaded file to the temporary file
+                for chunk in audio_file.chunks():
+                    temp_file.write(chunk)
+                temp_file_path = temp_file.name
+            
             # Process the audio file
-            transcription = audio_to_text(temp_file_path)
-            
-            # Delete the temporary file
-            os.unlink(temp_file_path)
-            
-            # Return the transcription
-            return JsonResponse({'transcription': transcription})
+            try:
+                transcription = audio_to_text(temp_file_path)
+                
+                # Delete the temporary file
+                if temp_file_path and os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+                    temp_file_path = None
+                
+                # Return the transcription
+                return JsonResponse({'transcription': transcription})
+                
+            except Exception as e:
+                # Log the detailed error
+                import traceback
+                error_msg = str(e)
+                print(f"Error in upload_audio: {error_msg}")
+                print(traceback.format_exc())
+                
+                # Clean user-facing error message
+                # If it's just a UUID, provide a more helpful message
+                if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
+                    error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
+                
+                return JsonResponse({'error': error_msg}, status=500)
         
         except Exception as e:
-            # Delete the temporary file in case of error
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
+            # General exception handler for any other errors
+            import traceback
+            print(f"Unexpected error in upload_audio: {str(e)}")
+            print(traceback.format_exc())
             
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({
+                'error': 'An unexpected error occurred while processing your audio file. Please try again.'
+            }, status=500)
+            
+        finally:
+            # Always clean up temp file if it exists
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as e:
+                    print(f"Error deleting temporary file: {str(e)}")
     
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
