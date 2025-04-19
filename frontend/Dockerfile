@@ -10,6 +10,8 @@ RUN npm install
 # Copy the rest of the frontend code
 COPY . . 
 
+RUN npm install jspdf jspdf-autotable
+
 # Build the React app
 RUN npm run build
 

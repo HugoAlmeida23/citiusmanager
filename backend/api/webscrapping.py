@@ -333,7 +333,7 @@ def send_email(subject, body, recipient_data):
     text_body += f"© {datetime.now().year} Soft Solutions. Todos os direitos reservados."
     
     try:
-        '''# Send email with both HTML and plain text versions
+        # Send email with both HTML and plain text versions
         response = client.send_email(
             Source='no-reply@softsolutions.com.pt',
             Destination={'ToAddresses': all_recipient_emails},  # Agora usando a lista de todos os emails
@@ -344,9 +344,9 @@ def send_email(subject, body, recipient_data):
                     'Html': {'Data': html_content}
                 }
             }
-        )'''
+        )
         logger.info(f"Enviando email para: {all_recipient_emails}")
-        #logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
+        logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
         return True
     except ClientError as e:
         logger.error(f"Falha ao enviar o email: {str(e)}")
@@ -520,6 +520,11 @@ def process_account(driver, supabase, account):
         try:
             rows = driver.find_elements(By.XPATH, '//tr[@style="color:#000066;height:20px;"]')
             logger.info(f"Found {len(rows)} notification rows for {account.username}")
+            
+            # Reverse the rows list to process them in reverse order (newest first)
+            rows = rows[::-1]
+            logger.info(f"Reversed the order of rows to process newest notifications first")
+            
         except Exception as e:
             logger.error(f"Error finding notification rows: {str(e)}")
             rows = []  # Use empty list if no rows found
@@ -530,6 +535,10 @@ def process_account(driver, supabase, account):
             "tribunal", "unidade", "processo", "especie", "referencia", "user_id", "created_at"
         ]
         logger.info(f"Database fields: {db_fields}")
+        
+        # List to store all notifications for batch processing
+        all_notifications = []
+        
         # Loop through each row and extract data
         for row in rows:
             try:
@@ -567,19 +576,22 @@ def process_account(driver, supabase, account):
                 )                
                 
                 if len(existing.data) == 0:
-                    # Insert new record
-                    result = supabase.table('api_processo').insert(row_dict).execute()
-                    logger.info(row_dict)
+                    # Add to notifications list for batch insertion
+                    all_notifications.append(row_dict)
                     new_not.append(row_dict)
-                    if result.data:
-                        insert_count += 1
-                        logger.info(f"Inserted notification with referência: {row_dict['referencia']} for {account.advogado}")
+                    logger.info(f"Added notification with referência: {row_dict['referencia']} for {account.advogado}")
                 else:
                     logger.info(f"Record already exists for referência: {row_dict['referencia']}, exiting count: {len(existing.data)}")
                 
-
             except Exception as e:
                 logger.error(f"Error processing row: {str(e)}")
+        
+        # Batch insert all new notifications to Supabase
+        if all_notifications:
+            result = supabase.table('api_processo').insert(all_notifications).execute()
+            if result.data:
+                insert_count = len(result.data)
+                logger.info(f"Batch inserted {insert_count} new notifications for {account.advogado}")
         
         logger.info(f"Account {account.username} processing completed. Inserted {insert_count} new notifications.")
         primary_email = {"data": [{"email": account.email}]} if account.email else {"data": []}
@@ -601,7 +613,7 @@ def process_account(driver, supabase, account):
     except Exception as e:
         logger.error(f"Error processing account {account.username}: {str(e)}")
         return 0, new_not, None
-
+    
 def test_citius_login(username, password):
     """Test Citius login credentials without scraping data"""
     # Initialize options for the Chrome driver

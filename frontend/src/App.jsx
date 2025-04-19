@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute"
 import AccountsManagement from "./pages/Account"
 import { ToastContainer } from 'react-toastify';
 import AudioTranscription from "./pages/AudioTranscription"
+import TogglNotionIntegration from "./pages/TogglNotion"
 
 function Logout() {
   localStorage.clear()
@@ -48,6 +49,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AudioTranscription />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/toggl-notion-integration"
+          element={
+            <ProtectedRoute>
+              <TogglNotionIntegration />
             </ProtectedRoute>
           }
         />

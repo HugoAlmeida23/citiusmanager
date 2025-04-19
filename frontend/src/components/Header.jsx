@@ -95,6 +95,13 @@ function Header() {
             <div className="tooltip">Transcrição</div>
           </li>
           <li>
+            <a href="./toggl-notion-integration" onClick={isMobile ? toggleSidebar : undefined}>
+              <span className="icon fas fa-clock text-white"></span>
+              <span className="item-name">Toggl-Notion</span>
+            </a>
+            <div className="tooltip">Toggl-Notion</div>
+          </li>
+          <li>
             <a href="./logout" onClick={isMobile ? toggleSidebar : undefined}>
               <span className="icon fa-solid fa-arrow-right-from-bracket text-white"></span>
               <span className="item-name">Sair</span>

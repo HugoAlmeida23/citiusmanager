@@ -28,3 +28,4 @@ openai
 pydub
 moviepy
 PyPDF2
+notion_client

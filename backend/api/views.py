@@ -23,16 +23,32 @@ from .whisper import audio_to_text
 from .models import CitiusAccountEmail
 from .serializers import CitiusAccountEmailSerializer
 from rest_framework import status
+from .toggl_notion_utils import (
+    extrair_id, 
+    get_lastupdate, 
+    get_credentials, 
+    post_project_summary,
+    get_user_details,
+    togll_run,
+    process_toggl_data,
+    getPageID,
+    write_from_toggl,
+    write_dates_json
+)
+import os
+import json
+from pathlib import Path
+from django.conf import settings
+from .toggl_notion_utils import get_lastupdate
 
 
 logger = logging.getLogger('citius-app')
 
+SUPABASE_URL = "https://shzvugthjndlagxlcowp.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoenZ1Z3Roam5kbGFneGxjb3dwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MDUyMDk1NywiZXhwIjoyMDU2MDk2OTU3fQ.bmJ7wr2uCPdy1RIqW2A2Xmk0bcx6zjiBYb8NszzadsM"
 
 # Initialize Supabase client (not used for file upload directly but may be used for DB interaction)
-supabase: Client = create_client(
-    settings.SUPABASE_URL,
-    settings.SUPABASE_ACCESS_KEY  # Only two arguments needed for the Supabase client
-)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logger = logging.getLogger('citius-app')
 
@@ -133,7 +149,7 @@ def account_emails(request, account_id):
 @csrf_exempt
 def upload_audio(request):
     """
-    API view to handle audio file upload and transcription
+    API view to handle audio file upload and transcription with diarization
     """
     if request.method == 'POST':
         temp_file_path = None
@@ -168,9 +184,12 @@ def upload_audio(request):
                     temp_file.write(chunk)
                 temp_file_path = temp_file.name
             
+            # Verificar se o formato JSON foi solicitado
+            output_format = request.POST.get('format', 'text')  # 'text' ou 'json'
+            
             # Process the audio file
             try:
-                transcription = audio_to_text(temp_file_path)
+                transcription = audio_to_text(temp_file_path, format_type=output_format)
                 
                 # Delete the temporary file
                 if temp_file_path and os.path.exists(temp_file_path):
@@ -178,7 +197,10 @@ def upload_audio(request):
                     temp_file_path = None
                 
                 # Return the transcription
-                return JsonResponse({'transcription': transcription})
+                return JsonResponse({
+                    'transcription': transcription,
+                    'format': output_format
+                })
                 
             except Exception as e:
                 # Log the detailed error
@@ -188,7 +210,6 @@ def upload_audio(request):
                 print(traceback.format_exc())
                 
                 # Clean user-facing error message
-                # If it's just a UUID, provide a more helpful message
                 if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
                     error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
                 
@@ -353,9 +374,7 @@ class ProcessoListCreate(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         # Automatically set the user field to the current user
         serializer.save(user=self.request.user)
-            
-    
-                    
+                            
 class ProcessoDelete(generics.DestroyAPIView):
     serializer_class = ProcessoSerializer
     permission_classes = [IsAuthenticated]
@@ -386,4 +405,297 @@ class CitiusAccountViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically set the user field to the current user
         serializer.save(user=self.request.user)
+
+
+# Função last_update atualizada para buscar os dados específicos do usuário
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def last_update(request):
+    """
+    Endpoint para obter informações sobre a última atualização
+    """
+    try:
+        user_id = request.user.id
+        user_update_file = f'user_{user_id}_lastupdate.json'
+        start_date = None
+        end_date = None
         
+        if not start_date or not end_date:
+            try:
+                # Baixar do Supabase
+                response = supabase.storage.from_('updates').download(user_update_file)
+                logger.info(f"result of updating in the supabase: {response}")
+                # Decodificar e carregar como JSON
+                update_data = json.loads(response.decode('utf-8'))
+                start_date = update_data.get('start')
+                end_date = update_data.get('end')
+            except Exception as e:
+                # Se não encontrar no Supabase, tentar o arquivo padrão
+                fallback_start, fallback_end = get_lastupdate()
+                start_date = fallback_start
+                end_date = fallback_end
+        
+        if start_date and end_date:
+            return Response({
+                "success": True,
+                "start_date": start_date,
+                "end_date": end_date
+            })
+        else:
+            return Response({
+                "success": False,
+                "message": "Nenhuma atualização registrada"
+            })
+    except Exception as e:
+        return Response({
+            "success": False,
+            "message": f"Erro ao buscar última atualização: {str(e)}"
+        }, status=500)
+# Função import_toggl_data atualizada para usar as credenciais específicas do usuário
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def import_toggl_data(request):
+    """
+    Endpoint para importar dados do Toggl para o Notion
+    """
+    try:
+        # Obter os dados do corpo da requisição
+        notion_database_id = request.data.get('notion_database_id')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+        logger.info(f"Dados recebidos: {notion_database_id}, {start_date}, {end_date}")
+        # Validar os dados de entrada
+        if not notion_database_id or not start_date or not end_date:
+            return Response({
+                "success": False,
+                "message": "Parâmetros obrigatórios ausentes: notion_database_id, start_date, end_date"
+            }, status=400)
+        
+        # Extrair ID limpo do Notion se vier como URL
+        notion_database_id = extrair_id(notion_database_id)
+        
+        # Obter credenciais específicas do usuário
+        user_id = request.user.id
+        credentials = get_credentials(user_id)
+        
+        # Se as credenciais específicas do usuário não forem encontradas, tentar credenciais padrão
+        if not credentials:
+            credentials = get_credentials()
+            
+        if not credentials:
+            return Response({
+                "success": False,
+                "message": "Falha ao obter credenciais. Configure suas credenciais primeiro."
+            }, status=500)
+        
+        valid_email = credentials['email']
+        valid_password = credentials['password']
+        notion_token = credentials['token']
+        workspace_id = credentials['workspace']
+        logger.info(f"Credenciais obtidas: {valid_email}, {notion_token}, {workspace_id}, {start_date}, {end_date}, {notion_database_id}")
+
+        from notion_client import Client
+        client = Client(auth=notion_token)
+        
+        # Obter dados do Toggl
+        summary_data = post_project_summary(valid_email, valid_password, workspace_id, start_date, end_date)
+        data = get_user_details(valid_email, valid_password, workspace_id)
+        toggl_original_data = togll_run(start_date, end_date, valid_email, valid_password, workspace_id)
+        
+        # Processar dados do Toggl
+        data_processed = process_toggl_data(summary_data, data, toggl_original_data, valid_email, valid_password, workspace_id)
+        
+        # Obter informações das páginas do Notion
+        notion_info, notion_info_file = getPageID(client, notion_database_id)
+        
+        # Escrever os dados do Toggl no Notion
+        write_from_toggl(data_processed, client, notion_database_id, notion_info)
+        
+        # Salvar as datas da última atualização para este usuário
+        user_update_file = f'user_{user_id}_lastupdate.json'
+        
+        
+        # Em produção, salvar no Supabase
+    
+        
+        # Converter para string JSON e depois para bytes
+        update_json = json.dumps({
+            "start": start_date,
+            "end": end_date,
+        })
+        update_bytes = update_json.encode('utf-8')
+        
+        # Enviar para o Supabase
+        try:
+            # Try to delete the file first (ignore errors if it doesn't exist)
+            try:
+                supabase.storage.from_('updates').remove([user_update_file])
+                logger.info(f"Arquivo de atualização anterior removido: {user_update_file}")
+            except Exception as e:
+                logger.info(f"Arquivo não existia ou erro ao remover: {str(e)}")
+            
+            # Then upload the new file
+            supabase.storage.from_('updates').upload(
+                user_update_file,
+                update_bytes,
+                {'content-type': 'application/json'}
+            )
+            logger.info(f"Novo arquivo de atualização criado: {user_update_file}")
+        except Exception as e:
+            logger.error(f"Erro ao salvar dados de atualização: {str(e)}")
+            # Continue execution, as this isn't critical
+                
+        # Retornar sucesso
+        return Response({
+            "success": True,
+            "message": "Dados importados com sucesso",
+            "projects": data_processed
+        })
+    
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return Response({
+            "success": False,
+            "message": f"Erro durante a importação: {str(e)}"
+        }, status=500)     
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_credentials(request):
+    """
+    Verifica se as credenciais Toggl/Notion já estão configuradas para o usuário
+    """
+    # Definir o caminho do arquivo de credenciais
+    # Usamos o ID do usuário para garantir que cada usuário tenha suas próprias credenciais
+    user_id = request.user.id
+    credentials_file = f'user_{user_id}_info.json'
+    
+    # Verificar se o arquivo existe no bucket do Supabase
+    file_exists = False
+    
+    try:
+        # Add this logic to ensure the bucket exists
+        try:
+            supabase.storage.create_bucket('credentials') 
+            logger.info("Bucket 'credentials' created successfully.")
+        except Exception as e:
+            # Handle case where bucket already exists
+            pass
+            logger.info(f"Bucket 'credentials' already exists or could not be created: {e}")
+        
+        # Verificar se o arquivo existe no bucket
+        response = supabase.storage.from_('credentials').list()
+        logger.info(f"result of creating credentials in the supabase: {response}")
+
+        file_list = [item['name'] for item in response]
+        file_exists = credentials_file in file_list
+    
+    except Exception as e:
+        print(f"Erro ao verificar credenciais: {str(e)}")
+        file_exists = False
+    
+    return Response({
+        "exists": file_exists
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def save_credentials(request):
+    """
+    Salva as credenciais Toggl/Notion do usuário
+    """
+    # Obter dados da requisição
+    email = request.data.get('email')
+    password = request.data.get('password')
+    token = request.data.get('token')
+    workspace = request.data.get('workspace')
+    
+    # Validar os campos obrigatórios
+    if not email or not password or not token or not workspace:
+        return Response({
+            "success": False,
+            "message": "Todos os campos são obrigatórios"
+        }, status=400)
+    
+    # Criar objeto de credenciais
+    credentials = {
+        "email": email,
+        "password": password,
+        "token": token,
+        "workspace": workspace
+    }
+    
+    # Salvar as credenciais
+    user_id = request.user.id
+    credentials_file = f'user_{user_id}_info.json'
+    
+    try:
+        
+      
+        
+        # Converter para string JSON e depois para bytes
+        json_str = json.dumps(credentials)
+        json_bytes = json_str.encode('utf-8')
+        
+        # Enviar para o Supabase
+        supabase.storage.from_('credentials').upload(
+            credentials_file,
+            json_bytes,
+            {'content-type': 'application/json'}
+        )
+        
+        return Response({
+            "success": True,
+            "message": "Credenciais salvas com sucesso"
+        })
+    
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return Response({
+            "success": False,
+            "message": f"Erro ao salvar credenciais: {str(e)}"
+        }, status=500)
+
+# Modificar a função get_credentials em toggl_notion_utils.py para ler o arquivo do usuário
+
+def get_credentials(user_id=None):
+    """
+    Obter credenciais do arquivo info.json ou do arquivo específico do usuário
+    """
+    try:
+        # Se o user_id for fornecido, tentar ler o arquivo específico do usuário
+        if user_id:
+            credentials_file = f'user_{user_id}_info.json'
+            
+            # Se não encontrar localmente, tentar no Supabase
+            try:
+                
+                
+                # Baixar do Supabase
+                response = supabase.storage.from_('credentials').download(credentials_file)
+                
+                # Decodificar e carregar como JSON
+                credentials_json = json.loads(response.decode('utf-8'))
+                return credentials_json
+            except Exception as e:
+                print(f"Erro ao obter credenciais do Supabase: {e}")
+                # Se falhar no Supabase, tentar o arquivo padrão
+                pass
+        
+        # Fallback para o arquivo info.json padrão
+        with open('info.json', 'r') as handler:
+            info = json.load(handler)
+        
+        return {
+            'email': info.get('email', ''),
+            'password': info.get('password', ''),
+            'token': info.get('token', ''),
+            'workspace': info.get('workspace', '')
+        }
+    except Exception as e:
+        print(f"Erro ao obter credenciais: {e}")
+        return None
