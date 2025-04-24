@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import api from "../api";
 import { toast } from "react-toastify";
@@ -16,15 +17,31 @@ function AudioTranscription() {
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
   const [transcriptionTime, setTranscriptionTime] = useState(null);
-  const [formatType, setFormatType] = useState("text"); // Default to text format
   const [transcriptionData, setTranscriptionData] = useState(null); // For JSON format
+  const [formatType, setFormatType] = useState("json"); // Default to text formatconst [transcriptionData, setTranscriptionData] = useState(null); // For JSON format
   const [speakerNames, setSpeakerNames] = useState({}); // Para armazenar os nomes personalizados dos falantes
   const [editingNames, setEditingNames] = useState(false); // Controla se está editando os nomes dos falantes
 
-  // Simulate progress during loading
+  // New state variables for async processing
+  const [jobId, setJobId] = useState(null);
+  const [pollingInterval, setPollingInterval] = useState(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+
+  const [editableTranscription, setEditableTranscription] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Adicionar este useEffect para inicializar a versão editável
+  useEffect(() => {
+    if (transcriptionData && transcriptionData.utterances) {
+      setEditableTranscription(JSON.parse(JSON.stringify(transcriptionData)));
+    }
+  }, [transcriptionData]);
+
+  // Simulate progress during loading for small files
   useEffect(() => {
     let interval;
-    if (isLoading) {
+    if (isLoading && !isPolling) {
       interval = setInterval(() => {
         setProgress((prev) => {
           const newProgress = prev + Math.random() * 2;
@@ -35,26 +52,42 @@ function AudioTranscription() {
           return newProgress;
         });
       }, 300);
-    } else if (progress > 0 && progress < 100) {
+    } else if (progress > 0 && progress < 100 && !isPolling) {
       setProgress(100); // Complete the progress bar
       setTimeout(() => setProgress(0), 1000); // Reset after animation
     }
-
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isLoading]);
+  }, [isLoading, isPolling]);
+
+  // Cleanup polling when component unmounts
+  // Make sure the polling effect doesn't depend on isPolling
+  // This effect cleans up polling when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        console.log('Component unmounting, clearing polling interval');
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]); // Only depend on pollingInterval, not isPolling
+
+  // Add a new effect to monitor isPolling state changes for debugging
+  useEffect(() => {
+    console.log('isPolling state changed to:', isPolling);
+  }, [isPolling]);
 
   // Inicializa os nomes dos falantes quando a transcrição é carregada
   useEffect(() => {
     if (transcriptionData && transcriptionData.utterances) {
       const uniqueSpeakers = [...new Set(transcriptionData.utterances.map(u => u.speaker))];
       const initialSpeakerNames = {};
-      
+
       uniqueSpeakers.forEach(speaker => {
         initialSpeakerNames[speaker] = `Falante ${speaker}`;
       });
-      
+
       setSpeakerNames(initialSpeakerNames);
     }
   }, [transcriptionData]);
@@ -80,6 +113,178 @@ function AudioTranscription() {
       file.name.endsWith(".wav") ||
       file.name.endsWith(".ogg") ||
       file.name.endsWith(".flac")
+    );
+  };
+
+  // Função para atualizar o texto de uma fala específica
+  const updateUtteranceText = (index, newText) => {
+    if (!editableTranscription) return;
+
+    const newTranscription = { ...editableTranscription };
+    newTranscription.utterances[index].text = newText;
+    setEditableTranscription(newTranscription);
+  };
+
+  // Função para salvar as edições
+  const saveTranscriptionEdits = () => {
+    setTranscriptionData(editableTranscription);
+    setIsEditing(false);
+    toast.success("Edições salvas com sucesso!");
+  };
+
+  const removeUtterance = (index) => {
+    if (!editableTranscription) return;
+
+    const newTranscription = { ...editableTranscription };
+    // Remove a fala no índice especificado
+    newTranscription.utterances = newTranscription.utterances.filter((_, i) => i !== index);
+
+    // Atualiza o texto completo da transcrição também
+    if (newTranscription.text) {
+      // Reconstruir o texto completo a partir das falas restantes
+      newTranscription.text = newTranscription.utterances
+        .map(u => `${speakerNames[u.speaker] || `Falante ${u.speaker}`}: ${u.text}`)
+        .join('\n\n');
+    }
+
+    setEditableTranscription(newTranscription);
+    toast.info("Fala removida");
+  };
+
+  // Função para iniciar a edição
+  const startEditing = () => {
+    setIsEditing(true);
+    setEditingNames(false);
+  };
+
+  // Função para cancelar a edição
+  const cancelEditing = () => {
+    setEditableTranscription(JSON.parse(JSON.stringify(transcriptionData)));
+    setIsEditing(false);
+    toast.info("Edições canceladas");
+  };
+
+  const TranscriptEditor = () => {
+    if (!editableTranscription || !editableTranscription.utterances) {
+      return null;
+    }
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Editar Transcrição
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={cancelEditing}
+              className="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={saveTranscriptionEdits}
+              className="px-3 py-1 bg-blue-600 rounded-md text-white hover:bg-blue-700 transition-colors"
+            >
+              Salvar Alterações
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {editableTranscription.utterances.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              Não há falas para exibir. Todas as falas foram removidas.
+            </div>
+          ) : (
+            editableTranscription.utterances.map((utterance, index) => {
+              const speakerName = speakerNames[utterance.speaker] || `Falante ${utterance.speaker}`;
+              const timestamp = utterance.start !== undefined
+                ? `[${formatTimestamp(utterance.start)}]`
+                : "";
+
+              return (
+                <div key={index} className="p-3 bg-gray-50 rounded-md transition-all hover:shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-500 mr-2">{timestamp}</span>
+                      <span className="font-medium text-blue-600">{speakerName}:</span>
+                    </div>
+                    <button
+                      onClick={() => removeUtterance(index)}
+                      className="text-red-500 hover:text-red-700 p-1"
+                      title="Remover esta fala"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <textarea
+                    value={utterance.text}
+                    onChange={(e) => updateUtteranceText(index, e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    rows={Math.max(2, Math.ceil(utterance.text.length / 70))}
+                  />
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Componente de visualização da transcrição
+  const TranscriptionViewer = () => {
+    if (!transcriptionData || !transcriptionData.utterances) {
+      return null;
+    }
+
+    return (
+      <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-medium text-gray-900">Transcrição</h3>
+          <button
+            onClick={startEditing}
+            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+              />
+            </svg>
+            Editar texto
+          </button>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto whitespace-pre-wrap text-gray-700">
+          {transcriptionData.utterances.map((utterance, index) => (
+            <div key={index} className="mb-3 pb-3 border-b border-gray-200 last:border-0">
+              <div className="flex items-start">
+                <span className="text-xs text-gray-500 mr-2 mt-1">
+                  [{formatTimestamp(utterance.start)}]
+                </span>
+                <div>
+                  <span className="font-bold text-blue-600">
+                    {speakerNames[utterance.speaker] || `Falante ${utterance.speaker}`}:
+                  </span>
+                  <span> {utterance.text}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   };
 
@@ -113,6 +318,116 @@ function AudioTranscription() {
     }
   };
 
+  const pollForResults = (id) => {
+    setIsPolling(true);
+
+    console.log(`Starting to poll for job ID: ${id}`);
+
+    // Add retry tracking
+    let retryCount = 0;
+    const maxRetries = 24; // 2 minutes (5s interval * 24 attempts = 120s)
+
+    // Create the interval
+    const intervalId = setInterval(() => {
+      console.log(`Polling for status of job: ${id}, attempt ${retryCount + 1}`);
+
+      // Use the job ID as indicator - if we have a valid job ID, keep polling
+      if (!id) {
+        console.log('No valid job ID, stopping polling');
+        clearInterval(intervalId);
+        setIsPolling(false);
+        return;
+      }
+
+      // Check if we've exceeded maximum retries
+      if (retryCount >= maxRetries) {
+        console.log(`Exceeded maximum retries (${maxRetries}), stopping polling`);
+        clearInterval(intervalId);
+        setIsPolling(false);
+        setIsLoading(false);
+        setError("Tempo limite excedido ao aguardar pela transcrição. Tente novamente.");
+        toast.error("Tempo limite excedido ao aguardar pela transcrição.");
+        return;
+      }
+
+      api.get(`/api/transcription/status/${id}/`)
+        .then((response) => {
+          console.log('Polling response:', response.data);
+
+          // Reset retry count on successful response
+          retryCount = 0;
+
+          // Update progress
+          setProgress(response.data.progress || 0);
+          console.log(`Progress: ${response.data.progress || 0}%`);
+
+          // If completed, handle the result
+          if (response.data.status === 'completed' && response.data.result) {
+            console.log('Transcription completed!');
+            clearInterval(intervalId);
+            setIsPolling(false);
+            setIsLoading(false);
+
+            console.log('Result type:', typeof response.data.result);
+
+            // Format the result appropriately
+            if (formatType === "json" && typeof response.data.result === "object") {
+              console.log('Setting JSON data');
+              setTranscriptionData(response.data.result);
+              setTranscription(response.data.result.text || JSON.stringify(response.data.result, null, 2));
+            } else {
+              console.log('Setting text data');
+              setTranscription(response.data.result);
+              setTranscriptionData(null);
+            }
+
+            const endTime = new Date();
+            const processingTime = ((endTime - startTime) / 1000).toFixed(1);
+            setTranscriptionTime(processingTime);
+            toast.success("Transcrição Completa!");
+          }
+
+          // If failed, handle the error
+          else if (response.data.status === 'failed') {
+            console.log('Transcription failed:', response.data.error);
+            clearInterval(intervalId);
+            setIsPolling(false);
+            setIsLoading(false);
+            const errorMessage = response.data.error || "A transcrição falhou. Tente novamente.";
+            setError(errorMessage);
+            toast.error(errorMessage);
+          }
+          else {
+            console.log(`Current status: ${response.data.status}, progress: ${response.data.progress}%`);
+          }
+        })
+        .catch((err) => {
+          console.error("Error polling for results:", err);
+
+          // For 404 errors, increment retry count but don't stop polling yet
+          if (err.response && err.response.status === 404) {
+            retryCount++;
+            console.log(`Job not found (404), retry attempt ${retryCount}/${maxRetries}`);
+            toast.info(`Aguardando processamento do trabalho... (${retryCount}/${maxRetries})`, {
+              autoClose: 2000,
+              toastId: 'polling-retry'
+            });
+          } else {
+            // For other errors, stop polling
+            clearInterval(intervalId);
+            setIsPolling(false);
+            setIsLoading(false);
+            setError("Erro ao verificar o estado da transcrição.");
+            toast.error("Erro ao verificar o estado da transcrição.");
+          }
+        });
+    }, 5000); // Poll every 5 seconds
+
+    // Store the interval ID in state so we can clear it later
+    setPollingInterval(intervalId);
+  };
+
+  // Update the handleSubmit function to ensure polling starts correctly
   const handleSubmit = () => {
     if (!file) {
       showErrorMessage();
@@ -122,11 +437,15 @@ function AudioTranscription() {
     setIsLoading(true);
     setError("");
     setProgress(0);
-    const startTime = new Date();
+    setIsPolling(false); // Reset polling state first
+    const newStartTime = new Date();
+    setStartTime(newStartTime);
 
     const formData = new FormData();
     formData.append("audio_file", file);
     formData.append("format", formatType); // Add format parameter
+
+    console.log("Submitting audio file for transcription...");
 
     api
       .post("/api/upload/", formData, {
@@ -135,29 +454,65 @@ function AudioTranscription() {
         },
       })
       .then((response) => {
-        // Handle both text and JSON formats
-        if (formatType === "json" && typeof response.data.transcription === "object") {
-          setTranscriptionData(response.data.transcription);
-          // Also set the text version for display
-          setTranscription(response.data.transcription.text || JSON.stringify(response.data.transcription, null, 2));
+        console.log("Upload response:", response.data);
+
+        // Check if we received a job_id (async processing for large files)
+        if (response.data.job_id) {
+          console.log(`Received job_id: ${response.data.job_id}`);
+          setJobId(response.data.job_id);
+
+          // Clear any existing polling interval
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+
+          // Start polling for results with a slight delay to ensure backend is ready
+          setTimeout(() => {
+            console.log(`Starting polling for job_id: ${response.data.job_id}`);
+            pollForResults(response.data.job_id);
+          }, 1000);
+
+          toast.info("Ficheiro grande detectado. A transcrição será processada em segundo plano.");
         } else {
-          setTranscription(response.data.transcription);
-          setTranscriptionData(null);
+          console.log("Received direct response (small file)");
+          // Handle immediate response (small files)
+          if (formatType === "json" && typeof response.data.transcription === "object") {
+            setTranscriptionData(response.data.transcription);
+            // Also set the text version for display
+            setTranscription(response.data.transcription.text || JSON.stringify(response.data.transcription, null, 2));
+          } else {
+            setTranscription(response.data.transcription);
+            setTranscriptionData(null);
+          }
+
+          setIsLoading(false);
+          const endTime = new Date();
+          const processingTime = ((endTime - newStartTime) / 1000).toFixed(1);
+          setTranscriptionTime(processingTime);
+          toast.success("Transcrição Completa!");
         }
-        
-        setIsLoading(false);
-        const endTime = new Date();
-        const processingTime = ((endTime - startTime) / 1000).toFixed(1);
-        setTranscriptionTime(processingTime);
-        toast.success("Transcrição Completa!");
       })
       .catch((err) => {
-        console.error("Error:", err);
+        console.error("Error during upload:", err);
         setIsLoading(false);
+        setIsPolling(false);
         const errorMessage = err.response?.data?.error || `Ocorreu um erro: ${err.message}`;
         setError(errorMessage);
         toast.error(errorMessage);
       });
+  };
+
+  // Function to cancel ongoing transcription
+  const handleCancelTranscription = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setIsPolling(false);
+    setIsLoading(false);
+    setJobId(null);
+    toast.info("Transcrição cancelada.");
   };
 
   const handleDownload = () => {
@@ -186,164 +541,150 @@ function AudioTranscription() {
     toast.success("Transcrição transferida com sucesso!");
   };
 
-  // Função para formatar timestamps
   // Função para formatar timestamps corrigida
-const formatTimestamp = (seconds) => {
-  if (seconds === undefined || seconds === null) return "00:00.00";
-  
-  // Converter para número, caso seja uma string
-  seconds = Number(seconds);
-  
-  // Verificar se o valor está em um formato não convencional
-  // Se o valor for muito grande (acima de 3600), podemos assumir que está em milissegundos
-  if (seconds > 3600) {
-    // Converter de milissegundos para segundos
-    seconds = seconds / 1000;
-  }
-  
-  // Calcular minutos e segundos
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = (seconds % 60).toFixed(2);
-  
-  // Formatar com padding (00:00.00)
-  // padStart só funciona com strings, precisamos garantir que remainingSeconds seja uma string
-  const formattedSeconds = remainingSeconds.toString().padStart(5, '0');
-  return `${minutes.toString().padStart(2, '0')}:${formattedSeconds}`;
-};
+  const formatTimestamp = (seconds) => {
+    if (seconds === undefined || seconds === null) return "00:00.00";
+
+    // Converter para número, caso seja uma string
+    seconds = Number(seconds);
+
+    // Verificar se o valor está em um formato não convencional
+    // Se o valor for muito grande (acima de 3600), podemos assumir que está em milissegundos
+    if (seconds > 3600) {
+      // Converter de milissegundos para segundos
+      seconds = seconds / 1000;
+    }
+
+    // Calcular minutos e segundos
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = (seconds % 60).toFixed(2);
+
+    // Formatar com padding (00:00.00)
+    // padStart só funciona com strings, precisamos garantir que remainingSeconds seja uma string
+    const formattedSeconds = remainingSeconds.toString().padStart(5, '0');
+    return `${minutes.toString().padStart(2, '0')}:${formattedSeconds}`;
+  };
 
   // Função para gerar o PDF com o diálogo formatado
-  const generatePDF = () => {
+  const generateCourtTranscriptPDF = () => {
     if (!transcriptionData || !transcriptionData.utterances) {
       toast.error("Não há transcrição disponível para exportar como PDF");
       return;
     }
-  
+
     try {
-      // Criando um novo documento PDF
+      // Create a new PDF document
       const doc = new jsPDF();
-      
-      // Configurações do documento
+
+      // Document settings
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 20;
       const contentWidth = pageWidth - 2 * margin;
-      
-      // Cores e estilos
-      const primaryColor = [41, 65, 148]; // Azul escuro
-      const secondaryColor = [80, 102, 169]; // Azul médio
-      const highlightColor = [226, 232, 240]; // Cinza claro para fundos
-      
-      // Título principal
-      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.rect(0, 0, pageWidth, 30, 'F');
-      
+
+      // Header with title
+      doc.setFillColor(41, 65, 148);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       const title = `Transcrição: ${fileName.split('.')[0]}`;
-      doc.text(title, pageWidth / 2, 20, { align: "center" });
-      
-      // Data da transcrição
-      const currentDate = new Date().toLocaleDateString('pt-PT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-      
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Data: ${currentDate}`, margin, 40);
-      
-      // Iniciar conteúdo
-      let yPosition = 50;
-      
-      // Adicionar cabeçalho para cada novo falante
-      let lastSpeaker = null;
-      
+      doc.text(title, pageWidth / 2, 16, { align: "center" });
+
+      // Start position after header
+      let yPosition = 40;
+
+      // Add each utterance
       transcriptionData.utterances.forEach((utterance, index) => {
+        // Format timestamp - always show at beginning of utterance
+        let timestamp = "";
+        if (utterance.start !== undefined) {
+          timestamp = `[${formatTimestamp(utterance.start)}] `;
+        }
+
+        // Get custom speaker name
         const speakerName = speakerNames[utterance.speaker] || `Falante ${utterance.speaker}`;
-        
-        // Verificar se é um novo falante (diferente do anterior)
-        const isNewSpeaker = lastSpeaker !== speakerName;
-        lastSpeaker = speakerName;
-        
-        // Se o conteúdo estiver perto do fim da página, adicionar nova página
-        if (yPosition > pageHeight - 40) {
-          doc.addPage();
-          yPosition = 40;
-        }
-        
-        // Formatar timestamp
-        let timestampText = '';
-        if (utterance.start !== undefined && utterance.end !== undefined) {
-          // Função formatTimestamp corrigida
-          const start = formatTimestamp(utterance.start);
-          const end = formatTimestamp(utterance.end);
-          timestampText = `${start} - ${end}`;
-        }
-        
-        // Nome do falante em fundo destacado
-        if (isNewSpeaker) {
-          doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          
-          // Retângulo de fundo para o nome do falante
-          const speakerWidth = doc.getTextWidth(speakerName) + 10;
-          doc.roundedRect(margin, yPosition - 5, speakerWidth, 10, 2, 2, 'F');
-          doc.text(speakerName + ":", margin + 5, yPosition);
-          
-          yPosition += 10;
-        } else {
-          // Pequeno espaçamento entre falas do mesmo falante
-          yPosition += 3;
-        }
-        
-        // Conteúdo da fala
-        doc.setTextColor(50, 50, 50);
+
+        // Format the speaker's line
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
         doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        
-        // Dividir o texto em linhas para não ultrapassar a largura
-        const textLines = doc.splitTextToSize(utterance.text, contentWidth - 10);
-        
-        // Fundo claro para o conteúdo
-        const textHeight = textLines.length * 7;
-        doc.setFillColor(highlightColor[0], highlightColor[1], highlightColor[2]);
-        doc.roundedRect(margin, yPosition - 5, contentWidth, textHeight + 10, 1, 1, 'F');
-        
-        // Texto da fala
-        doc.text(textLines, margin + 5, yPosition);
-        
-        // Adicionar timestamp
-        if (timestampText) {
-          doc.setTextColor(120, 120, 120);
-          doc.setFontSize(8);
-          doc.setFont("helvetica", "italic");
-          
-          const timestampWidth = doc.getTextWidth(timestampText);
-          doc.text(timestampText, pageWidth - margin - timestampWidth - 5, yPosition + textHeight + 3);
+
+        // Add timestamp + speaker
+        const speakerWithTimestamp = `${timestamp}${speakerName}: `;
+
+        // Calculate width of the speaker prefix
+        const speakerWidth = doc.getTextWidth(speakerWithTimestamp);
+
+        // Check if we need a new page before starting this utterance
+        if (yPosition > pageHeight - 30) {
+          doc.addPage();
+          yPosition = 30;
         }
-        
-        // Avançar posição para o próximo item
-        yPosition += textHeight + 15;
+
+        // Add the complete line (speaker + text) as one flowing paragraph
+        doc.setFont("helvetica", "bold");
+        doc.text(speakerWithTimestamp, margin, yPosition);
+
+        // Add the text right after the speaker name
+        doc.setFont("helvetica", "normal");
+
+        // Format utterance text to flow naturally on the page
+        const maxWidth = contentWidth - speakerWidth;
+        const utteranceText = utterance.text;
+
+        // Split text into words
+        const words = utteranceText.split(' ');
+        let currentLine = '';
+        let currentX = margin + speakerWidth;
+
+        // Process the first word specially to attach it to the speaker name
+        if (words.length > 0) {
+          currentLine = words[0];
+          doc.text(currentLine, currentX, yPosition);
+          currentX += doc.getTextWidth(currentLine + ' ');
+        }
+
+        // Process the rest of the words
+        for (let i = 1; i < words.length; i++) {
+          const word = words[i];
+          const wordWidth = doc.getTextWidth(word + ' ');
+
+          // Check if adding this word would exceed the line width
+          if (currentX + wordWidth > margin + contentWidth) {
+            // Move to next line
+            yPosition += 6;
+            currentX = margin;
+
+            // Check if we need a new page
+            if (yPosition > pageHeight - 20) {
+              doc.addPage();
+              yPosition = 30;
+            }
+          }
+
+          // Add the word
+          doc.text(word, currentX, yPosition);
+          currentX += wordWidth;
+        }
+
+        // Move to the next utterance
+        yPosition += 12; // Add extra space between utterances
       });
-      
-      // Rodapé
+
+      // Add page numbers
       const pageCount = doc.internal.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
         doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
       }
-      
-      // Salvar o PDF
-      doc.save(`transcrição_${fileName.split('.')[0]}.pdf`);
-      toast.success("PDF da transcrição gerado com sucesso!");
+
+      // Save the PDF
+      doc.save(`transcrição_judicial_${fileName.split('.')[0]}.pdf`);
+      toast.success("PDF da transcrição judicial gerado com sucesso!");
     } catch (error) {
       console.error("Erro ao gerar PDF:", error);
       toast.error("Erro ao gerar o PDF. Por favor, tente novamente.");
@@ -359,6 +700,14 @@ const formatTimestamp = (seconds) => {
   };
 
   const handleReset = () => {
+    // Clear any ongoing polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setIsPolling(false);
+    setJobId(null);
+
     setFile(null);
     setFileName("");
     setTranscription("");
@@ -367,6 +716,9 @@ const formatTimestamp = (seconds) => {
     setTranscriptionTime(null);
     setSpeakerNames({});
     setEditingNames(false);
+    setEditableTranscription(null);
+    setIsEditing(false);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -412,24 +764,24 @@ const formatTimestamp = (seconds) => {
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
           {/* CSS for basic animations without framer-motion */}
           <style jsx>{`
-        .fade-in {
-          animation: fadeIn 0.5s ease-in-out;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .slide-in {
-          animation: slideIn 0.5s ease-in-out;
-        }
-        
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+      .fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      .slide-in {
+        animation: slideIn 0.5s ease-in-out;
+      }
+      
+      @keyframes slideIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `}</style>
           <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
             {/* Main Content */}
             <div className="bg-white rounded-xl shadow-xl overflow-hidden"
@@ -450,8 +802,8 @@ const formatTimestamp = (seconds) => {
                   <>
                     <div
                       className={`border-2 border-dashed rounded-xl p-8 mb-6 text-center transition-all ${dragActive
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
                         }`}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
@@ -545,35 +897,6 @@ const formatTimestamp = (seconds) => {
                       )}
                     </div>
 
-                    {/* Format selection */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Formato de Saída:
-                      </label>
-                      <div className="flex space-x-4">
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            className="form-radio h-4 w-4 text-blue-600"
-                            value="text"
-                            checked={formatType === "text"}
-                            onChange={handleFormatChange}
-                          />
-                          <span className="ml-2 text-gray-700">Texto simples</span>
-                        </label>
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            className="form-radio h-4 w-4 text-blue-600"
-                            value="json"
-                            checked={formatType === "json"}
-                            onChange={handleFormatChange}
-                          />
-                          <span className="ml-2 text-gray-700">JSON com identificação de falantes</span>
-                        </label>
-                      </div>
-                    </div>
-
                     {error && (
                       <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 flex items-start fade-in"
                       >
@@ -615,8 +938,8 @@ const formatTimestamp = (seconds) => {
                         onClick={handleSubmit}
                         disabled={isLoading || !file}
                         className={`flex items-center justify-center py-3 px-6 rounded-lg font-medium shadow-sm transition ${isLoading || !file
-                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                            : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow"
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow"
                           }`}
                       >
                         {isLoading ? (
@@ -681,7 +1004,7 @@ const formatTimestamp = (seconds) => {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Botão para personalizar os nomes dos falantes */}
                     {formatType === "json" && transcriptionData && transcriptionData.utterances && (
                       <div className="mb-4">
@@ -690,18 +1013,18 @@ const formatTimestamp = (seconds) => {
                             onClick={startEditingSpeakerNames}
                             className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
                           >
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              className="h-5 w-5 mr-1" 
-                              fill="none" 
-                              viewBox="0 0 24 24" 
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5 mr-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
                               stroke="currentColor"
                             >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2} 
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" 
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                               />
                             </svg>
                             Personalizar nomes dos falantes
@@ -715,8 +1038,8 @@ const formatTimestamp = (seconds) => {
                                   <label className="mr-2 w-24 text-sm font-medium text-gray-700">
                                     Falante {speaker}:
                                   </label>
-                                  <input 
-                                    type="text" 
+                                  <input
+                                    type="text"
                                     value={name}
                                     onChange={(e) => updateSpeakerName(speaker, e.target.value)}
                                     className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block sm:text-sm border-gray-300 rounded-md"
@@ -737,35 +1060,32 @@ const formatTimestamp = (seconds) => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Display transcription based on format */}
-                    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-6 max-h-96 overflow-y-auto whitespace-pre-wrap text-gray-700">
-                      {formatType === "json" && transcriptionData && transcriptionData.utterances ? (
-                        <div>
-                          {transcriptionData.utterances.map((utterance, index) => (
-                            <div key={index} className="mb-3 pb-3 border-b border-gray-200 last:border-0">
-                              <span className="font-bold text-blue-600">
-                                {speakerNames[utterance.speaker] || `Falante ${utterance.speaker}`}: 
-                              </span>
-                              <span> {utterance.text}</span>
-                              {utterance.start !== undefined && utterance.end !== undefined && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {formatTimestamp(utterance.start)} - {formatTimestamp(utterance.end)}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        transcription
-                      )}
-                    </div>
+                    {/* Display transcription based on format */}
+                    {formatType === "json" && transcriptionData && transcriptionData.utterances ? (
+                      <>
+                        {isEditing ? (
+                          <TranscriptEditor />
+                        ) : (
+                          <TranscriptionViewer />
+                        )}
+
+
+
+
+                      </>
+                    ) : (
+                      <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-6 max-h-96 overflow-y-auto whitespace-pre-wrap text-gray-700">
+                        {transcription}
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-3">
                       {/* Botão para gerar PDF */}
                       {formatType === "json" && transcriptionData && transcriptionData.utterances && (
                         <button
-                          onClick={generatePDF}
+                          onClick={generateCourtTranscriptPDF}
                           className="flex items-center bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700 transition shadow-sm hover:shadow"
                         >
                           <svg

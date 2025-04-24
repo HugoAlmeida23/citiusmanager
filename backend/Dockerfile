@@ -30,6 +30,12 @@ RUN wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/11
     && rm /tmp/chromedriver.zip \
     && chmod +x /usr/local/bin/chromedriver
 
+    # Install ffmpeg and sox with all formats
+RUN apt-get update && apt-get install -y ffmpeg sox libsox-fmt-all
+
+# Install ffmpeg-python
+RUN pip install ffmpeg-python
+
 # Copiar requirements.txt
 COPY requirements.txt .
 
