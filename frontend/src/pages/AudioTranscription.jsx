@@ -21,77 +21,207 @@ function AudioTranscription() {
   const [formatType, setFormatType] = useState("json"); // Default to text formatconst [transcriptionData, setTranscriptionData] = useState(null); // For JSON format
   const [speakerNames, setSpeakerNames] = useState({}); // Para armazenar os nomes personalizados dos falantes
   const [editingNames, setEditingNames] = useState(false); // Controla se está editando os nomes dos falantes
-
-  // New state variables for async processing
   const [jobId, setJobId] = useState(null);
   const [pollingInterval, setPollingInterval] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
   const [startTime, setStartTime] = useState(null);
-
   const [editableTranscription, setEditableTranscription] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // Adicionar este useEffect para inicializar a versão editável
+  useEffect(() => {
+    // Only start polling if we have a jobId and we're not already polling
+    console.log('useEffect triggered with jobId:', jobId, 'isPolling:', isPolling);
+    if (jobId && !isPolling) {
+      console.log(`Starting to poll for job ID: ${jobId} (from useEffect)`);
+      
+      // Set polling state to true
+      setIsPolling(true);
+      
+      // Clear any existing polling interval first
+      if (pollingInterval) {
+        console.log('Clearing existing polling interval');
+        clearInterval(pollingInterval);
+      }
+      
+      // Create the interval with the current jobId value
+      const intervalId = setInterval(() => {
+        // Use a function to get current job ID to avoid closure issues
+        const currentJobId = jobId;
+        console.log(`Polling for status of job: ${currentJobId}`);
+        
+        if (!currentJobId) {
+          console.log('No valid job ID, stopping polling');
+          clearInterval(intervalId);
+          setIsPolling(false);
+          setProgress(0);
+          return;
+        }
+        
+        api.get(`/api/transcription/status/${currentJobId}/`)
+          .then((response) => {
+            console.log('Polling response:', response.data);
+            
+            // Check if we have a valid response
+            if (!response.data) {
+              console.log('Empty response received');
+              return;
+            }
+            
+            // Update progress
+            if (response.data.progress !== undefined) {
+              const newProgress = response.data.progress || 0;
+              setProgress(newProgress);
+              console.log(`Progress: ${newProgress}%`);
+              
+              // Show toast for significant progress updates
+              if (newProgress % 20 === 0 && newProgress > 0) {
+                toast.info(`Progresso da transcrição: ${newProgress}%`, {
+                  autoClose: 2000,
+                  toastId: `progress-${newProgress}`
+                });
+              }
+            }
+            
+            // If completed, handle the result
+            if (response.data.status === 'completed' && response.data.result) {
+              console.log('Transcription completed!');
+              clearInterval(intervalId);
+              setIsPolling(false);
+              setIsLoading(false);
+              setProgress(100);
+              
+              // Format the result appropriately
+              if (formatType === "json" && typeof response.data.result === "object") {
+                console.log('Setting JSON data');
+                setTranscriptionData(response.data.result);
+                setTranscription(response.data.result.text || JSON.stringify(response.data.result, null, 2));
+              } else {
+                console.log('Setting text data');
+                setTranscription(response.data.result);
+                setTranscriptionData(null);
+              }
+              
+              const endTime = new Date();
+              const processingTime = ((endTime - startTime) / 1000).toFixed(1);
+              setTranscriptionTime(processingTime);
+              toast.success("Transcrição Completa!");
+            }
+            // If failed, handle the error
+            else if (response.data.status === 'failed') {
+              console.log('Transcription failed:', response.data.error);
+              clearInterval(intervalId);
+              setIsPolling(false);
+              setIsLoading(false);
+              setProgress(0);
+              const errorMessage = response.data.error || "A transcrição falhou. Tente novamente.";
+              setError(errorMessage);
+              toast.error(errorMessage);
+            }
+          })
+          .catch((err) => {
+            console.error("Error polling for results:", err);
+          });
+      }, 5000); // Poll every 5 seconds
+      
+      // Store the interval ID in state
+      setPollingInterval(intervalId);
+      
+      // Clean up interval on unmount
+      return () => {
+        if (intervalId) {
+          console.log('Cleaning up polling interval in useEffect cleanup');
+          clearInterval(intervalId);
+        }
+      };
+    }
+  }, [jobId]); 
+
   useEffect(() => {
     if (transcriptionData && transcriptionData.utterances) {
       setEditableTranscription(JSON.parse(JSON.stringify(transcriptionData)));
     }
   }, [transcriptionData]);
 
-  // Simulate progress during loading for small files
   useEffect(() => {
     let interval;
     if (isLoading && !isPolling) {
+      // Apenas simular o progresso quando NÃO estiver usando polling
       interval = setInterval(() => {
         setProgress((prev) => {
+          // Limitamos a simulação a um máximo de 60% para arquivos sem polling
           const newProgress = prev + Math.random() * 2;
-          if (newProgress >= 98) {
+          if (newProgress >= 60) {
             clearInterval(interval);
-            return 98; // Hold at 98% until complete
+            return 60; // Segura em 60% até termos dados reais
           }
           return newProgress;
         });
       }, 300);
-    } else if (progress > 0 && progress < 100 && !isPolling) {
-      setProgress(100); // Complete the progress bar
-      setTimeout(() => setProgress(0), 1000); // Reset after animation
+    } else if (!isPolling && progress > 0 && progress < 100) {
+      setProgress(100); // Completa o progresso apenas quando não está em polling
+      setTimeout(() => setProgress(0), 1000); // Reset após animação
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isLoading, isPolling]);
 
-  // Cleanup polling when component unmounts
-  // Make sure the polling effect doesn't depend on isPolling
-  // This effect cleans up polling when the component unmounts
   useEffect(() => {
+    // This effect runs only once on component mount
     return () => {
+      // This function runs when component unmounts
       if (pollingInterval) {
-        console.log('Component unmounting, clearing polling interval');
+        console.log('Component unmounting, cleaning up polling interval');
         clearInterval(pollingInterval);
       }
     };
-  }, [pollingInterval]); // Only depend on pollingInterval, not isPolling
+  }, []);
 
-  // Add a new effect to monitor isPolling state changes for debugging
   useEffect(() => {
     console.log('isPolling state changed to:', isPolling);
   }, [isPolling]);
 
-  // Inicializa os nomes dos falantes quando a transcrição é carregada
   useEffect(() => {
     if (transcriptionData && transcriptionData.utterances) {
       const uniqueSpeakers = [...new Set(transcriptionData.utterances.map(u => u.speaker))];
-      const initialSpeakerNames = {};
 
+      // Verificar se já temos nomes personalizados
+      let shouldUpdateNames = false;
+      const initialSpeakerNames = { ...speakerNames }; // Começar com os nomes existentes
+
+      // Adicionar apenas falantes que ainda não existem no estado
       uniqueSpeakers.forEach(speaker => {
-        initialSpeakerNames[speaker] = `Falante ${speaker}`;
+        if (!initialSpeakerNames[speaker]) {
+          initialSpeakerNames[speaker] = `Falante ${speaker}`;
+          shouldUpdateNames = true;
+        }
       });
 
-      setSpeakerNames(initialSpeakerNames);
+      // Atualizar apenas se houver novos falantes
+      if (shouldUpdateNames) {
+        setSpeakerNames(initialSpeakerNames);
+      }
+
+      // Se transcriptionData tem nomes personalizados, usá-los
+      if (transcriptionData.customSpeakerNames && Object.keys(transcriptionData.customSpeakerNames).length > 0) {
+        setSpeakerNames(prevNames => ({
+          ...prevNames,
+          ...transcriptionData.customSpeakerNames
+        }));
+      }
     }
   }, [transcriptionData]);
 
+  const getProgressStatusMessage = (progress) => {
+    if (progress < 10) return "A iniciar o processamento...";
+    if (progress < 20) return "A analisar o áudio...";
+    if (progress < 40) return "A enviar para o serviço de transcrição...";
+    if (progress < 60) return "A processar a transcrição...";
+    if (progress < 80) return "Identificação de falantes...";
+    if (progress < 95) return "A finalizar a transcrição...";
+    return "Quase pronto...";
+  };
+ 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -116,7 +246,6 @@ function AudioTranscription() {
     );
   };
 
-  // Função para atualizar o texto de uma fala específica
   const updateUtteranceText = (index, newText) => {
     if (!editableTranscription) return;
 
@@ -125,10 +254,57 @@ function AudioTranscription() {
     setEditableTranscription(newTranscription);
   };
 
-  // Função para salvar as edições
   const saveTranscriptionEdits = () => {
-    setTranscriptionData(editableTranscription);
+    if (!editableTranscription) return;
+
+    // Criar uma cópia profunda para evitar referências
+    const newTranscription = JSON.parse(JSON.stringify(editableTranscription));
+
+    // Coletar todos os inputs de timestamp
+    const timestampInputs = document.querySelectorAll('.timestamp-input');
+
+    // Processar cada input
+    timestampInputs.forEach(input => {
+      try {
+        const index = parseInt(input.getAttribute('data-index'), 10);
+        const timestampStr = input.value;
+
+        const parts = timestampStr.split(':');
+        if (parts.length === 2) {
+          const minutes = parseInt(parts[0], 10);
+          const seconds = parseFloat(parts[1]);
+          const totalSeconds = minutes * 60 + seconds;
+
+          if (!isNaN(totalSeconds)) {
+            newTranscription.utterances[index].start = totalSeconds;
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao converter timestamp:", error);
+      }
+    });
+
+    // Preservar os nomes personalizados dos falantes
+    // Adicionar os nomes personalizados aos dados de transcrição
+    newTranscription.customSpeakerNames = JSON.parse(JSON.stringify(speakerNames));
+
+    // Atualizar o texto completo também, se houver
+    if (newTranscription.text) {
+      newTranscription.text = newTranscription.utterances
+        .map(u => `${speakerNames[u.speaker] || `Falante ${u.speaker}`}: ${u.text}`)
+        .join('\n\n');
+    }
+
+    // Atualizar o estado da transcrição
+    setTranscriptionData(newTranscription);
     setIsEditing(false);
+
+    // Garantir que os nomes dos falantes sejam mantidos
+    setTimeout(() => {
+      // Força a atualização do estado speakerNames para garantir que os componentes re-renderizem
+      setSpeakerNames({ ...speakerNames });
+    }, 100);
+
     toast.success("Edições salvas com sucesso!");
   };
 
@@ -151,13 +327,11 @@ function AudioTranscription() {
     toast.info("Fala removida");
   };
 
-  // Função para iniciar a edição
   const startEditing = () => {
     setIsEditing(true);
     setEditingNames(false);
   };
 
-  // Função para cancelar a edição
   const cancelEditing = () => {
     setEditableTranscription(JSON.parse(JSON.stringify(transcriptionData)));
     setIsEditing(false);
@@ -165,6 +339,14 @@ function AudioTranscription() {
   };
 
   const TranscriptEditor = () => {
+    // Adicione esta linha para definir o estado forceUpdate
+    const [forceUpdate, setForceUpdate] = useState(0);
+
+    // Este useEffect garante que o componente seja re-renderizado quando speakerNames mudar
+    useEffect(() => {
+      setForceUpdate(prev => prev + 1);
+    }, [speakerNames]);
+
     if (!editableTranscription || !editableTranscription.utterances) {
       return null;
     }
@@ -199,16 +381,36 @@ function AudioTranscription() {
           ) : (
             editableTranscription.utterances.map((utterance, index) => {
               const speakerName = speakerNames[utterance.speaker] || `Falante ${utterance.speaker}`;
-              const timestamp = utterance.start !== undefined
-                ? `[${formatTimestamp(utterance.start)}]`
-                : "";
 
               return (
                 <div key={index} className="p-3 bg-gray-50 rounded-md transition-all hover:shadow-sm">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center">
-                      <span className="text-xs text-gray-500 mr-2">{timestamp}</span>
-                      <span className="font-medium text-blue-600">{speakerName}:</span>
+                    <div className="flex items-center space-x-3">
+                      {/* Timestamp input - sem onChange, apenas defaultValue */}
+                      <div className="flex items-center">
+                        <input
+                          type="text"
+                          defaultValue={formatTimestamp(utterance.start)}
+                          className="text-xs text-gray-500 w-20 p-1 border border-gray-300 rounded-md timestamp-input"
+                          title="Editar timestamp (formato MM:SS.MS)"
+                          data-index={index}
+                        />
+                      </div>
+
+                      {/* Speaker selection */}
+                      <div className="flex items-center">
+                        <select
+                          value={utterance.speaker}
+                          onChange={(e) => updateUtteranceSpeaker(index, e.target.value)}
+                          className="font-medium text-blue-600 p-1 border border-gray-300 rounded-md text-sm"
+                        >
+                          {Object.keys(speakerNames).map((speakerKey) => (
+                            <option key={`${speakerKey}-${forceUpdate}`} value={speakerKey}>
+                              {speakerNames[speakerKey]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <button
                       onClick={() => removeUtterance(index)}
@@ -235,8 +437,15 @@ function AudioTranscription() {
     );
   };
 
-  // Componente de visualização da transcrição
   const TranscriptionViewer = () => {
+    // Forçar o componente a re-renderizar quando speakerNames mudar
+    const [forceUpdate, setForceUpdate] = useState(0);
+
+    // Este useEffect garante que o componente seja re-renderizado quando speakerNames mudar
+    useEffect(() => {
+      setForceUpdate(prev => prev + 1);
+    }, [speakerNames]);
+
     if (!transcriptionData || !transcriptionData.utterances) {
       return null;
     }
@@ -269,7 +478,7 @@ function AudioTranscription() {
 
         <div className="max-h-96 overflow-y-auto whitespace-pre-wrap text-gray-700">
           {transcriptionData.utterances.map((utterance, index) => (
-            <div key={index} className="mb-3 pb-3 border-b border-gray-200 last:border-0">
+            <div key={`${index}-${forceUpdate}`} className="mb-3 pb-3 border-b border-gray-200 last:border-0">
               <div className="flex items-start">
                 <span className="text-xs text-gray-500 mr-2 mt-1">
                   [{formatTimestamp(utterance.start)}]
@@ -318,135 +527,46 @@ function AudioTranscription() {
     }
   };
 
-  const pollForResults = (id) => {
-    setIsPolling(true);
+  const updateUtteranceSpeaker = (index, newSpeaker) => {
+    if (!editableTranscription) return;
 
-    console.log(`Starting to poll for job ID: ${id}`);
-
-    // Add retry tracking
-    let retryCount = 0;
-    const maxRetries = 24; // 2 minutes (5s interval * 24 attempts = 120s)
-
-    // Create the interval
-    const intervalId = setInterval(() => {
-      console.log(`Polling for status of job: ${id}, attempt ${retryCount + 1}`);
-
-      // Use the job ID as indicator - if we have a valid job ID, keep polling
-      if (!id) {
-        console.log('No valid job ID, stopping polling');
-        clearInterval(intervalId);
-        setIsPolling(false);
-        return;
-      }
-
-      // Check if we've exceeded maximum retries
-      if (retryCount >= maxRetries) {
-        console.log(`Exceeded maximum retries (${maxRetries}), stopping polling`);
-        clearInterval(intervalId);
-        setIsPolling(false);
-        setIsLoading(false);
-        setError("Tempo limite excedido ao aguardar pela transcrição. Tente novamente.");
-        toast.error("Tempo limite excedido ao aguardar pela transcrição.");
-        return;
-      }
-
-      api.get(`/api/transcription/status/${id}/`)
-        .then((response) => {
-          console.log('Polling response:', response.data);
-
-          // Reset retry count on successful response
-          retryCount = 0;
-
-          // Update progress
-          setProgress(response.data.progress || 0);
-          console.log(`Progress: ${response.data.progress || 0}%`);
-
-          // If completed, handle the result
-          if (response.data.status === 'completed' && response.data.result) {
-            console.log('Transcription completed!');
-            clearInterval(intervalId);
-            setIsPolling(false);
-            setIsLoading(false);
-
-            console.log('Result type:', typeof response.data.result);
-
-            // Format the result appropriately
-            if (formatType === "json" && typeof response.data.result === "object") {
-              console.log('Setting JSON data');
-              setTranscriptionData(response.data.result);
-              setTranscription(response.data.result.text || JSON.stringify(response.data.result, null, 2));
-            } else {
-              console.log('Setting text data');
-              setTranscription(response.data.result);
-              setTranscriptionData(null);
-            }
-
-            const endTime = new Date();
-            const processingTime = ((endTime - startTime) / 1000).toFixed(1);
-            setTranscriptionTime(processingTime);
-            toast.success("Transcrição Completa!");
-          }
-
-          // If failed, handle the error
-          else if (response.data.status === 'failed') {
-            console.log('Transcription failed:', response.data.error);
-            clearInterval(intervalId);
-            setIsPolling(false);
-            setIsLoading(false);
-            const errorMessage = response.data.error || "A transcrição falhou. Tente novamente.";
-            setError(errorMessage);
-            toast.error(errorMessage);
-          }
-          else {
-            console.log(`Current status: ${response.data.status}, progress: ${response.data.progress}%`);
-          }
-        })
-        .catch((err) => {
-          console.error("Error polling for results:", err);
-
-          // For 404 errors, increment retry count but don't stop polling yet
-          if (err.response && err.response.status === 404) {
-            retryCount++;
-            console.log(`Job not found (404), retry attempt ${retryCount}/${maxRetries}`);
-            toast.info(`Aguardando processamento do trabalho... (${retryCount}/${maxRetries})`, {
-              autoClose: 2000,
-              toastId: 'polling-retry'
-            });
-          } else {
-            // For other errors, stop polling
-            clearInterval(intervalId);
-            setIsPolling(false);
-            setIsLoading(false);
-            setError("Erro ao verificar o estado da transcrição.");
-            toast.error("Erro ao verificar o estado da transcrição.");
-          }
-        });
-    }, 5000); // Poll every 5 seconds
-
-    // Store the interval ID in state so we can clear it later
-    setPollingInterval(intervalId);
+    const newTranscription = { ...editableTranscription };
+    newTranscription.utterances[index].speaker = newSpeaker;
+    setEditableTranscription(newTranscription);
   };
 
-  // Update the handleSubmit function to ensure polling starts correctly
   const handleSubmit = () => {
     if (!file) {
       showErrorMessage();
       return;
     }
-
+  
+    // Reset all relevant state
     setIsLoading(true);
     setError("");
     setProgress(0);
-    setIsPolling(false); // Reset polling state first
+    setTranscription("");
+    setTranscriptionData(null);
+  
+    // Clear any existing polling interval
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  
+    // Reset polling state
+    setIsPolling(true);
+
+    // Set start time for processing
     const newStartTime = new Date();
     setStartTime(newStartTime);
-
+  
     const formData = new FormData();
     formData.append("audio_file", file);
     formData.append("format", formatType); // Add format parameter
-
+  
     console.log("Submitting audio file for transcription...");
-
+  
     api
       .post("/api/upload/", formData, {
         headers: {
@@ -455,24 +575,13 @@ function AudioTranscription() {
       })
       .then((response) => {
         console.log("Upload response:", response.data);
-
+  
         // Check if we received a job_id (async processing for large files)
         if (response.data.job_id) {
           console.log(`Received job_id: ${response.data.job_id}`);
+  
+          // Store the job ID in state - this will trigger the useEffect to start polling
           setJobId(response.data.job_id);
-
-          // Clear any existing polling interval
-          if (pollingInterval) {
-            clearInterval(pollingInterval);
-            setPollingInterval(null);
-          }
-
-          // Start polling for results with a slight delay to ensure backend is ready
-          setTimeout(() => {
-            console.log(`Starting polling for job_id: ${response.data.job_id}`);
-            pollForResults(response.data.job_id);
-          }, 1000);
-
           toast.info("Ficheiro grande detectado. A transcrição será processada em segundo plano.");
         } else {
           console.log("Received direct response (small file)");
@@ -485,8 +594,9 @@ function AudioTranscription() {
             setTranscription(response.data.transcription);
             setTranscriptionData(null);
           }
-
+  
           setIsLoading(false);
+          setProgress(100);
           const endTime = new Date();
           const processingTime = ((endTime - newStartTime) / 1000).toFixed(1);
           setTranscriptionTime(processingTime);
@@ -497,21 +607,25 @@ function AudioTranscription() {
         console.error("Error during upload:", err);
         setIsLoading(false);
         setIsPolling(false);
+        setProgress(0);
+        setJobId(null);
         const errorMessage = err.response?.data?.error || `Ocorreu um erro: ${err.message}`;
         setError(errorMessage);
         toast.error(errorMessage);
       });
   };
 
-  // Function to cancel ongoing transcription
   const handleCancelTranscription = () => {
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
+  
     setIsPolling(false);
     setIsLoading(false);
+    setProgress(0);
     setJobId(null);
+  
     toast.info("Transcrição cancelada.");
   };
 
@@ -541,7 +655,6 @@ function AudioTranscription() {
     toast.success("Transcrição transferida com sucesso!");
   };
 
-  // Função para formatar timestamps corrigida
   const formatTimestamp = (seconds) => {
     if (seconds === undefined || seconds === null) return "00:00.00";
 
@@ -565,7 +678,6 @@ function AudioTranscription() {
     return `${minutes.toString().padStart(2, '0')}:${formattedSeconds}`;
   };
 
-  // Função para gerar o PDF com o diálogo formatado
   const generateCourtTranscriptPDF = () => {
     if (!transcriptionData || !transcriptionData.utterances) {
       toast.error("Não há transcrição disponível para exportar como PDF");
@@ -731,27 +843,67 @@ function AudioTranscription() {
     return size.toFixed(2) + " MB";
   };
 
-  const handleFormatChange = (e) => {
-    setFormatType(e.target.value);
-  };
-
-  // Função para iniciar a edição de nomes dos falantes
   const startEditingSpeakerNames = () => {
     setEditingNames(true);
   };
 
-  // Função para salvar nomes dos falantes
   const saveEditingSpeakerNames = () => {
+    console.log('Salvando nomes de falantes:', speakerNames);
+
+    // Persistir nomes em localStorage para recuperação futura
+    try {
+      localStorage.setItem('speakerNames', JSON.stringify(speakerNames));
+    } catch (error) {
+      console.error('Erro ao salvar no localStorage:', error);
+    }
+
+    // Se existirem dados de transcrição, atualize o texto completo para refletir os novos nomes
+    if (transcriptionData && transcriptionData.utterances) {
+      const updatedTranscription = JSON.parse(JSON.stringify(transcriptionData));
+
+      // Adicione os nomes personalizados aos dados de transcrição
+      updatedTranscription.customSpeakerNames = JSON.parse(JSON.stringify(speakerNames));
+
+      // Atualize o texto completo se existir
+      if (updatedTranscription.text) {
+        updatedTranscription.text = updatedTranscription.utterances
+          .map(u => `${speakerNames[u.speaker] || `Falante ${u.speaker}`}: ${u.text}`)
+          .join('\n\n');
+      }
+
+      // Atualize os estados da transcrição
+      setTranscriptionData(updatedTranscription);
+
+      // Atualize também a versão editável se existir
+      if (editableTranscription) {
+        const updatedEditableTranscription = JSON.parse(JSON.stringify(updatedTranscription));
+        setEditableTranscription(updatedEditableTranscription);
+      }
+    }
+
+    // Feche o modo de edição de nomes
     setEditingNames(false);
+
+    // Notifique o usuário
     toast.success("Nomes dos falantes personalizados salvos!");
+
+    // Força uma re-renderização após um pequeno delay para garantir que as alterações sejam aplicadas
+    setTimeout(() => {
+      // Uma pequena alteração no estado para forçar uma re-renderização
+      setSpeakerNames({ ...speakerNames });
+    }, 100);
   };
 
-  // Função para atualizar o nome de um falante específico
   const updateSpeakerName = (speaker, newName) => {
-    setSpeakerNames(prev => ({
-      ...prev,
-      [speaker]: newName
-    }));
+    console.log(`Atualizando nome do falante ${speaker} para ${newName}`);
+    setSpeakerNames(prev => {
+      const updated = {
+        ...prev,
+        [speaker]: newName
+      };
+      console.log('Novos nomes:', updated);
+      return updated;
+    });
   };
 
   return (
@@ -1175,18 +1327,40 @@ function AudioTranscription() {
                 {isLoading && (
                   <div className="mt-8 fade-in">
                     <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-medium text-gray-700">A processar o ficheiro...</h3>
+                      <h3 className="font-medium text-gray-700">
+                        {isPolling
+                          ? getProgressStatusMessage(progress)
+                          : "A processar o ficheiro..."}
+                      </h3>
                       <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                       <div
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       ></div>
                     </div>
-                    <div className="text-sm text-gray-500 italic text-center animate-pulse">
-                      Este processo pode demorar alguns minutos dependendo do tamanho do ficheiro
+                    <div className="text-sm text-gray-500 italic text-center">
+                      {isPolling && progress > 60 && progress < 95 ? (
+                        "Os arquivos maiores podem levar vários minutos para processar"
+                      ) : isPolling && progress >= 95 ? (
+                        "Finalizando a transcrição, quase pronto..."
+                      ) : (
+                        "Este processo pode demorar alguns minutos dependendo do tamanho do ficheiro"
+                      )}
                     </div>
+
+                    {/* Adicionar botão para cancelar a transcrição para arquivos grandes */}
+                    {isPolling && (
+                      <div className="mt-4 text-center">
+                        <button
+                          onClick={handleCancelTranscription}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                        >
+                          Cancelar transcrição
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -21,6 +21,10 @@ def get_job_status(job_id):
         if job_id not in transcription_jobs:
             return None
         
+        # Make sure we have the status_message field (for backward compatibility)
+        if 'status_message' not in transcription_jobs[job_id]:
+            transcription_jobs[job_id]['status_message'] = "Processando..."
+            
         return transcription_jobs[job_id].copy()
 
 def audio_to_text_async(audio_file_path):
@@ -38,7 +42,8 @@ def audio_to_text_async(audio_file_path):
             'progress': 0,
             'result': None,
             'error': None,
-            'file_size': "0.00MB"
+            'file_size': "0.00MB",
+            'status_message': "Iniciando processamento..."
         }
     
     # Start processing in a separate thread
@@ -49,8 +54,6 @@ def audio_to_text_async(audio_file_path):
     thread.daemon = True
     thread.start()
     
-    return job_id
-
 def preprocess_audio(input_file, output_file):
     """
     Preprocess audio to enhance speech for difficult audio conditions
@@ -176,6 +179,7 @@ def process_audio_job(audio_file_path, job_id):
         with jobs_lock:
             transcription_jobs[job_id]['file_size'] = f"{file_size:.2f}MB"
             transcription_jobs[job_id]['progress'] = 5
+            transcription_jobs[job_id]['status_message'] = "Inicializando processamento..."
         
         # Check API key first
         api_key = os.getenv("ASSEMBLYAI_API_KEY", "")
@@ -189,15 +193,27 @@ def process_audio_job(audio_file_path, job_id):
         
         # Verify API key is valid with a simple request
         print("Verifying API key...")
-        test_response = requests.get(
-            "https://api.assemblyai.com/v2/account",
-            headers=headers
-        )
-        
-        if test_response.status_code != 200:
-            raise Exception(f"API key validation failed: {test_response.text}")
-        else:
-            print("API key verified successfully")
+        try:
+            test_response = requests.get(
+                "https://api.assemblyai.com/v2/account",
+                headers=headers,
+                timeout=10  # Timeout mais curto para validação
+            )
+            
+            if test_response.status_code != 200:
+                raise Exception(f"API key validation failed: {test_response.text}")
+            else:
+                print("API key verified successfully")
+                # Atualizar progresso após verificação da API
+                with jobs_lock:
+                    transcription_jobs[job_id]['progress'] = 10
+                    transcription_jobs[job_id]['status_message'] = "API validada, preparando áudio..."
+        except Exception as api_error:
+            print(f"API validation error: {str(api_error)}")
+            with jobs_lock:
+                transcription_jobs[job_id]['status'] = 'failed'
+                transcription_jobs[job_id]['error'] = f"API validation error: {str(api_error)}"
+            return
         
         # Create temp directory for preprocessing
         temp_dir = tempfile.mkdtemp()
@@ -205,30 +221,33 @@ def process_audio_job(audio_file_path, job_id):
         
         # IMPROVEMENT 1: Always preprocess the audio for difficult conditions
         with jobs_lock:
-            transcription_jobs[job_id]['progress'] = 10
+            transcription_jobs[job_id]['progress'] = 15
+            transcription_jobs[job_id]['status_message'] = "Pré-processando áudio..."
             
-        """ try:
+        try:
             # Apply audio enhancement
             print(f"Preprocessing audio to: {processed_file}")
             preprocess_audio(audio_file_path, processed_file)
             
-            # Verify the processed file exists and has content
+            # Verificar se o arquivo processado existe e tem conteúdo
             if not os.path.exists(processed_file) or os.path.getsize(processed_file) == 0:
                 raise Exception("Audio preprocessing failed to produce valid output file")
                 
             # Use enhanced audio file
             audio_file_path = processed_file
             print("Audio preprocessing successful")
+            
+            # Atualizar progresso após pré-processamento
+            with jobs_lock:
+                transcription_jobs[job_id]['progress'] = 20
+                transcription_jobs[job_id]['status_message'] = "Iniciando upload do áudio..."
         except Exception as preprocess_error:
             print(f"Warning: Audio preprocessing failed: {preprocess_error}")
             print("Falling back to original audio file")
             # If preprocessing fails, fall back to the original file
-            audio_file_path = original_audio_path """
+            audio_file_path = original_audio_path
         
-        # Upload the enhanced file to AssemblyAI
-        with jobs_lock:
-            transcription_jobs[job_id]['progress'] = 20
-        
+        # Upload the file to AssemblyAI
         # Improved upload with retry mechanism
         max_upload_retries = 3
         upload_retry_count = 0
@@ -239,6 +258,10 @@ def process_audio_job(audio_file_path, job_id):
         while not upload_success and upload_retry_count < max_upload_retries:
             try:
                 print(f"Upload attempt {upload_retry_count + 1}/{max_upload_retries}...")
+                
+                # Atualizar status com informação da tentativa
+                with jobs_lock:
+                    transcription_jobs[job_id]['status_message'] = f"Enviando áudio para transcrição (tentativa {upload_retry_count + 1})..."
                 
                 # Check file readability before upload
                 if not os.access(audio_file_path, os.R_OK):
@@ -275,6 +298,10 @@ def process_audio_job(audio_file_path, job_id):
                 if upload_response.status_code == 200:
                     upload_success = True
                     print("Upload successful!")
+                    # Atualizar progresso após upload bem-sucedido
+                    with jobs_lock:
+                        transcription_jobs[job_id]['progress'] = 30
+                        transcription_jobs[job_id]['status_message'] = "Upload concluído, iniciando transcrição..."
                 else:
                     print(f"Upload attempt {upload_retry_count + 1} failed with status {upload_response.status_code}")
                     print(f"Response content: {upload_response.text}")
@@ -304,6 +331,10 @@ def process_audio_job(audio_file_path, job_id):
                                 upload_response = alternative_response
                                 upload_success = True
                                 print("Alternative upload successful!")
+                                # Atualizar progresso após upload bem-sucedido
+                                with jobs_lock:
+                                    transcription_jobs[job_id]['progress'] = 30
+                                    transcription_jobs[job_id]['status_message'] = "Upload concluído, iniciando transcrição..."
                             else:
                                 print(f"Alternative upload also failed: {alternative_response.status_code}: {alternative_response.text}")
                     
@@ -325,6 +356,7 @@ def process_audio_job(audio_file_path, job_id):
         # Request transcription with diarization
         with jobs_lock:
             transcription_jobs[job_id]['progress'] = 40
+            transcription_jobs[job_id]['status_message'] = "Enviando requisição de transcrição..."
             
         # IMPROVEMENT 2: Enhanced parameters for difficult audio conditions
         data = {
@@ -411,10 +443,22 @@ def process_audio_job(audio_file_path, job_id):
         max_retries = 150  # IMPROVEMENT 6: Increased max retries for longer processing time
         
         while not completed and retry_count < max_retries:
+            # Calcular o progresso dinamicamente com base no tempo de espera
+            # De 40% (início do polling) a 95% (final do polling)
             with jobs_lock:
-                # Calculate dynamic progress based on retries (40-95%)
-                progress = min(95, 40 + int(retry_count * 55 / max_retries))
-                transcription_jobs[job_id]['progress'] = progress
+                # Progresso: 40% no início do polling → 95% no final
+                polling_progress = min(95, 40 + int(retry_count * 55 / max_retries))
+                transcription_jobs[job_id]['progress'] = polling_progress
+                
+                # Atualizar mensagem de status com base no progresso
+                if polling_progress < 50:
+                    transcription_jobs[job_id]['status_message'] = "Processando áudio..."
+                elif polling_progress < 70:
+                    transcription_jobs[job_id]['status_message'] = "Identificando falantes..."
+                elif polling_progress < 85:
+                    transcription_jobs[job_id]['status_message'] = "Criando transcrição..."
+                else:
+                    transcription_jobs[job_id]['status_message'] = "Finalizando transcrição..."
             
             # Get the status of the transcription
             try:
@@ -432,6 +476,18 @@ def process_audio_job(audio_file_path, job_id):
                     
                 polling_result = polling_response.json()
                 status = polling_result['status']
+                
+                # Registrar o progresso reportado pela API AssemblyAI, se disponível
+                if 'percent_complete' in polling_result:
+                    api_percent = polling_result['percent_complete'] or 0
+                    print(f"AssemblyAI reports {api_percent}% complete")
+                    
+                    # Calcular progresso híbrido combinando nossa estimativa com o progresso da API
+                    # Mantém entre 40-95% (reservando 0-40% para upload e 95-100% para finalização)
+                    if api_percent > 0:
+                        with jobs_lock:
+                            hybrid_progress = min(95, 40 + int(api_percent * 0.55))
+                            transcription_jobs[job_id]['progress'] = hybrid_progress
                 
                 if status == 'completed':
                     # Transcription is ready
@@ -462,6 +518,7 @@ def process_audio_job(audio_file_path, job_id):
                         transcription_jobs[job_id]['status'] = 'completed'
                         transcription_jobs[job_id]['progress'] = 100
                         transcription_jobs[job_id]['result'] = result
+                        transcription_jobs[job_id]['status_message'] = "Transcrição completa!"
                     
                     completed = True
                 
@@ -470,6 +527,7 @@ def process_audio_job(audio_file_path, job_id):
                     with jobs_lock:
                         transcription_jobs[job_id]['status'] = 'failed'
                         transcription_jobs[job_id]['error'] = error_message
+                        transcription_jobs[job_id]['status_message'] = f"Erro: {error_message}"
                     
                     completed = True
                 
@@ -482,6 +540,7 @@ def process_audio_job(audio_file_path, job_id):
                     with jobs_lock:
                         transcription_jobs[job_id]['status'] = 'failed'
                         transcription_jobs[job_id]['error'] = f"Unknown status: {status}"
+                        transcription_jobs[job_id]['status_message'] = "Erro: status desconhecido"
                     
                     completed = True
                     
@@ -495,6 +554,7 @@ def process_audio_job(audio_file_path, job_id):
             with jobs_lock:
                 transcription_jobs[job_id]['status'] = 'failed'
                 transcription_jobs[job_id]['error'] = "Processing timed out"
+                transcription_jobs[job_id]['status_message'] = "Tempo limite excedido"
         
     except Exception as e:
         error_msg = f"Error in audio processing: {e}"
@@ -504,13 +564,15 @@ def process_audio_job(audio_file_path, job_id):
             if job_id in transcription_jobs:
                 transcription_jobs[job_id]['status'] = 'failed'
                 transcription_jobs[job_id]['error'] = error_msg
+                transcription_jobs[job_id]['status_message'] = f"Erro: {error_msg}"
             else:
                 transcription_jobs[job_id] = {
                     'status': 'failed',
                     'progress': 0,
                     'result': None,
                     'error': error_msg,
-                    'file_size': "0.00MB"
+                    'file_size': "0.00MB",
+                    'status_message': f"Erro: {error_msg}"
                 }
     
     finally:

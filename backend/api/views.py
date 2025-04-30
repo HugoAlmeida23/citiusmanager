@@ -146,6 +146,21 @@ def account_emails(request, account_id):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+@api_view(['GET'])
+def transcription_status(request, job_id):
+    """
+    API view to check the status of an ongoing transcription job
+    """
+    from .whisper import get_job_status
+    
+    # Obter status do job
+    job_status = get_job_status(job_id)
+    
+    if job_status is None:
+        return Response({"error": "Job not found"}, status=404)
+    
+    return Response(job_status)
+
 @csrf_exempt
 def upload_audio(request):
     """
@@ -187,33 +202,51 @@ def upload_audio(request):
             # Verificar se o formato JSON foi solicitado
             output_format = request.POST.get('format', 'text')  # 'text' ou 'json'
             
-            # Process the audio file
-            try:
-                transcription = audio_to_text(temp_file_path, format_type=output_format)
+            # Verificar tamanho do arquivo para determinar processamento síncrono ou assíncrono
+            file_size = os.path.getsize(temp_file_path) / (1024 * 1024)  # tamanho em MB
+            
+            # Para arquivos grandes (acima de 5MB), usamos processamento assíncrono
+            if file_size > 5:
+                from .whisper import audio_to_text_async
                 
-                # Delete the temporary file
-                if temp_file_path and os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                    temp_file_path = None
+                # Start async processing and get job ID
+                job_id = audio_to_text_async(temp_file_path)
                 
-                # Return the transcription
+                # Return job ID for polling
                 return JsonResponse({
-                    'transcription': transcription,
-                    'format': output_format
+                    'status': 'processing',
+                    'job_id': job_id,
+                    'file_size': f"{file_size:.2f}MB"
                 })
-                
-            except Exception as e:
-                # Log the detailed error
-                import traceback
-                error_msg = str(e)
-                print(f"Error in upload_audio: {error_msg}")
-                print(traceback.format_exc())
-                
-                # Clean user-facing error message
-                if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
-                    error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
-                
-                return JsonResponse({'error': error_msg}, status=500)
+            else:
+                # Para arquivos pequenos, processamento síncrono
+                try:
+                    from .whisper import audio_to_text
+                    transcription = audio_to_text(temp_file_path, format_type=output_format)
+                    
+                    # Delete the temporary file
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
+                        temp_file_path = None
+                    
+                    # Return the transcription
+                    return JsonResponse({
+                        'transcription': transcription,
+                        'format': output_format
+                    })
+                    
+                except Exception as e:
+                    # Log the detailed error
+                    import traceback
+                    error_msg = str(e)
+                    print(f"Error in upload_audio: {error_msg}")
+                    print(traceback.format_exc())
+                    
+                    # Clean user-facing error message
+                    if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
+                        error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
+                    
+                    return JsonResponse({'error': error_msg}, status=500)
         
         except Exception as e:
             # General exception handler for any other errors
