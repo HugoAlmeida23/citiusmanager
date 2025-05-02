@@ -53,6 +53,9 @@ def audio_to_text_async(audio_file_path):
     )
     thread.daemon = True
     thread.start()
+
+    return job_id
+
     
 def preprocess_audio(input_file, output_file):
     """
@@ -274,24 +277,12 @@ def process_audio_job(audio_file_path, job_id):
                     if len(file_data) == 0:
                         raise ValueError(f"File is empty: {audio_file_path}")
                     
-                    # Try to upload in chunks for larger files
-                    if len(file_data) > 10 * 1024 * 1024:  # If larger than 10MB
-                        print("Large file detected, trying chunk upload")
-                        # Try the direct upload with chunked encoding
-                        upload_response = requests.post(
-                            "https://api.assemblyai.com/v2/upload",
-                            headers=headers,
-                            data=f,  # File object will be read in chunks
-                            timeout=120  # Longer timeout for large files
-                        )
-                    else:
-                        # For smaller files, read all into memory
-                        print(f"Uploading file ({len(file_data)/1024:.2f}KB)")
-                        upload_response = requests.post(
+                    print(f"Uploading file ({len(file_data)/1024:.2f}KB)")
+                    upload_response = requests.post(
                             "https://api.assemblyai.com/v2/upload",
                             headers=headers,
                             data=file_data,
-                            timeout=60
+                            timeout=120
                         )
                     
                 # Check response
@@ -586,6 +577,13 @@ def process_audio_job(audio_file_path, job_id):
         except Exception as e:
             print(f"Error cleaning up temporary files: {e}")
 
+    try:
+        if original_audio_path and os.path.exists(original_audio_path):
+            print(f"Cleaning up original temp file: {original_audio_path}")
+            os.unlink(original_audio_path)
+    except Exception as e:
+        print(f"Error cleaning up original temporary input file '{original_audio_path}': {e}")
+
 def audio_to_text(audio_file_path, format_type="text"):
     """
     Synchronous version of transcription with diarization.
@@ -624,10 +622,16 @@ def audio_to_text(audio_file_path, format_type="text"):
             error_msg = job_status.get('error', "Transcription failed with unknown error")
             raise Exception(error_msg)
     except Exception as e:
-        error_msg = str(e)
-        if error_msg == job_id:
-            error_msg = "Transcription processing failed"
-        raise Exception(error_msg)
+         # If process_audio_job fails, the finally block there should have cleaned up.
+         # Re-raise the exception
+         error_msg = str(e)
+         # Clean up job entry on error
+         with jobs_lock:
+             if job_id in transcription_jobs:
+                 del transcription_jobs[job_id]
+         if error_msg == job_id: # Handle case where exception is just the job_id
+             error_msg = "Transcription processing failed"
+         raise Exception(error_msg)
 
 # IMPROVEMENT 8: Add a new function to split and transcribe in segments
 def split_and_transcribe(audio_file_path, segment_duration=90, format_type="text"):

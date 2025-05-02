@@ -219,34 +219,34 @@ def upload_audio(request):
                     'file_size': f"{file_size:.2f}MB"
                 })
             else:
-                # Para arquivos pequenos, processamento síncrono
+                # Para arquivos pequenos, processamento síncrono 
                 try:
-                    from .whisper import audio_to_text
-                    transcription = audio_to_text(temp_file_path, format_type=output_format)
-                    
-                    # Delete the temporary file
-                    if temp_file_path and os.path.exists(temp_file_path):
-                        os.unlink(temp_file_path)
-                        temp_file_path = None
-                    
-                    # Return the transcription
-                    return JsonResponse({
-                        'transcription': transcription,
-                        'format': output_format
-                    })
-                    
+                        from .whisper import audio_to_text
+                        transcription = audio_to_text(temp_file_path, format_type=output_format)
+                        
+                        # Delete the temporary file
+                        if temp_file_path and os.path.exists(temp_file_path):
+                            os.unlink(temp_file_path)
+                            temp_file_path = None
+                        
+                        # Return the transcription
+                        return JsonResponse({
+                            'transcription': transcription,
+                            'format': output_format
+                        })
+                        
                 except Exception as e:
-                    # Log the detailed error
-                    import traceback
-                    error_msg = str(e)
-                    print(f"Error in upload_audio: {error_msg}")
-                    print(traceback.format_exc())
-                    
-                    # Clean user-facing error message
-                    if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
-                        error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
-                    
-                    return JsonResponse({'error': error_msg}, status=500)
+                        # Log the detailed error
+                        import traceback
+                        error_msg = str(e)
+                        print(f"Error in upload_audio: {error_msg}")
+                        print(traceback.format_exc())
+                        
+                        # Clean user-facing error message
+                        if error_msg and all(c in '0123456789abcdef-' for c in error_msg):
+                            error_msg = "Audio processing failed. The file may be too large, corrupted, or in an unsupported format."
+                        
+                        return JsonResponse({'error': error_msg}, status=500)
         
         except Exception as e:
             # General exception handler for any other errors
@@ -258,14 +258,6 @@ def upload_audio(request):
                 'error': 'An unexpected error occurred while processing your audio file. Please try again.'
             }, status=500)
             
-        finally:
-            # Always clean up temp file if it exists
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                except Exception as e:
-                    print(f"Error deleting temporary file: {str(e)}")
-    
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 def download_transcription(request):
