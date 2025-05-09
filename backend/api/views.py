@@ -16,7 +16,7 @@ import tempfile
 import os
 from rest_framework.decorators import api_view, permission_classes
 from .models import CitiusAccount
-from .serializers import CitiusAccountSerializer
+from .serializers import CitiusAccountSerializer, PasswordChangeSerializer
 from .tasks import scheduled_citius_scrape, test_citius_account
 from django.http import HttpResponse
 from .whisper import audio_to_text
@@ -724,3 +724,17 @@ def get_credentials(user_id=None):
     except Exception as e:
         print(f"Erro ao obter credenciais: {e}")
         return None
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    API view to handle changing user's password
+    """
+    serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
+    
+    if serializer.is_valid():
+        serializer.save()
+        return Response({"message": "Senha alterada com sucesso."}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

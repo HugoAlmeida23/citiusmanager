@@ -284,311 +284,385 @@ def get_document_urls(driver):
         driver.save_screenshot("document_extraction_error.png")
         return []
 
-def download_document(driver, doc_info):
+def download_document(driver, doc_info, max_retries=3):
     """
     Attempts to download document(s) from a notification.
     Supports multiple documents/attachments with adaptive handling based on page structure.
+    Includes retry mechanism for error handling.
     """
     origem = doc_info.get('origem', 'Desconhecido')
-    
-    logger.info(f"Attempting to download document(s) for: {doc_info['acto']} - {doc_info['referencia']} - Origin: {origem}")
-    
-    # Store current URL for returning later
-    current_url = driver.current_url
-    
-    # Adjust timeout based on previous experience with different origins
-    original_timeout = driver.timeouts.page_load
-    # Use longer timeout for Mandatário docs which tend to be slower
-    driver.set_page_load_timeout(60 if origem == "Mandatário" else 30)
+    logger.info(f"Attempting to download document(s) for: {doc_info.get('acto', 'N/A')} - {doc_info.get('referencia', 'N/A')} - Origin: {origem}")
 
+    current_url = driver.current_url
+    original_timeout_value = 30  # Default in seconds
+    
     try:
-        # Navigate to document popup URL
-        logger.info(f"Navigating to document popup URL: {doc_info['doc_url']}")
-        driver.get(doc_info['doc_url'])
-        
-        # Base wait for page to load
-        time.sleep(3)
-        
-        try:
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-        except Exception as e:
-            logger.warning(f"Timeout waiting for body element: {str(e)}")
-        
-        # List to store downloaded documents
-        downloaded_documents = []
-        all_document_urls = []
-        
-        # ====== STEP 1: TRY PRIMARY DROPDOWN APPROACH ======
-        primary_dropdown_found = False
-        try:
-            # Check if primary dropdown exists
-            primary_dropdown = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.ID, "dropDocs"))
-            )
-            
-            primary_dropdown_found = True
-            logger.info(f"Found primary dropdown for {origem} document")
-            
-            # Get all options from the primary dropdown
-            primary_options = primary_dropdown.find_elements(By.TAG_NAME, "option")
-            primary_values = [option.get_attribute('value') for option in primary_options]
-            primary_texts = [option.text for option in primary_options]
-            
-            total_primary_docs = len(primary_values)
-            logger.info(f"Found {total_primary_docs} document(s)/attachment(s) in primary dropdown")
-            
-            # Process each option in primary dropdown
-            for index, (doc_value, doc_name) in enumerate(zip(primary_values, primary_texts)):
-                logger.info(f"Processing primary dropdown item {index+1}/{total_primary_docs}: {doc_name}")
-                
+        for retry_attempt in range(max_retries):
+            try:
+                if retry_attempt > 0:
+                    logger.info(f"Retry attempt {retry_attempt}/{max_retries} for downloading documents")
+                    # Navigate back to the document URL on retry attempts
+                    driver.get(doc_info['doc_url'])
+                    time.sleep(3)  # Wait for page to load
+                    
+                new_timeout_seconds = 60 if origem == "Mandatário" else 30
+                if hasattr(driver, 'set_page_load_timeout'):
+                    driver.set_page_load_timeout(new_timeout_seconds)
+                else:
+                    logger.warning("driver.set_page_load_timeout not available. Page load timeout not changed.")
+
+                if retry_attempt == 0:  # Only log this on first attempt
+                    logger.info(f"Navigating to document popup URL: {doc_info['doc_url']}")
+                    driver.get(doc_info['doc_url'])
+                    
+                time.sleep(3) # General pause for initial load
+
                 try:
-                    # Select this option in the primary dropdown
-                    select = Select(primary_dropdown)
-                    select.select_by_value(doc_value)
-                    time.sleep(3)  # Wait for selection to load
-                    
-                    # Process secondary dropdown for this primary selection
-                    secondary_docs = process_secondary_dropdown(driver, doc_info, doc_name, index)
-                    
-                    if secondary_docs:
-                        downloaded_documents.extend(secondary_docs['documents'])
-                        all_document_urls.extend(secondary_docs['urls'])
-                        logger.info(f"Processed {len(secondary_docs['documents'])} secondary documents for {doc_name}")
-                except Exception as e:
-                    logger.error(f"Error processing primary dropdown option {index+1}: {str(e)}")
-                    continue
-        
-        except (NoSuchElementException, TimeoutException):
-            primary_dropdown_found = False
-            logger.info(f"No primary dropdown found for {origem} document. Will try alternative approaches.")
-        
-        # ====== STEP 2: IF PRIMARY APPROACH FAILED, TRY SPECIALIZED HANDLER FOR KNOWN COMPLEX LAYOUTS ======
-        if not downloaded_documents and origem == "Mandatário":
-            logger.info("Trying specialized Mandatário document handler")
-            try:
-                mandatario_docs = handle_mandatario_document(driver, doc_info)
+                    WebDriverWait(driver, 20).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "body"))
+                    )
+                except TimeoutException as e:
+                    logger.warning(f"Timeout waiting for body element after navigation: {str(e)}")
+
+                downloaded_documents = []
+                all_document_urls = []
+                primary_dropdown_processed_successfully = False
+
+                # ====== STEP 1: TRY PRIMARY DROPDOWN APPROACH ======
+                try:
+                    primary_dropdown_locator = (By.ID, "dropDocs")
+                    initial_primary_dropdown_element = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located(primary_dropdown_locator)
+                    )
+                    logger.info(f"Found primary dropdown (ID: dropDocs) for {origem} document.")
+
+                    primary_options_data = []
+                    for option_element in initial_primary_dropdown_element.find_elements(By.TAG_NAME, "option"):
+                        primary_options_data.append({
+                            "value": option_element.get_attribute('value'),
+                            "text": option_element.text.strip()
+                        })
+
+                    if not primary_options_data:
+                        logger.info("Primary dropdown (ID: dropDocs) exists but has no options.")
+                    else:
+                        total_primary_docs = len(primary_options_data)
+                        logger.info(f"Found {total_primary_docs} document(s)/attachment(s) in primary dropdown.")
+
+                        for index in range(total_primary_docs):
+                            doc_data = primary_options_data[index]
+                            doc_value = doc_data["value"]
+                            doc_name = doc_data["text"]
+                            
+                            logger.info(f"Processing primary dropdown item {index + 1}/{total_primary_docs}: '{doc_name}' (Value: '{doc_value}')")
+                            
+                            try:
+                                current_primary_dropdown_element = WebDriverWait(driver, 10).until(
+                                    EC.presence_of_element_located(primary_dropdown_locator)
+                                )
+                                select = Select(current_primary_dropdown_element)
+                                
+                                if doc_value is not None and doc_value != "":
+                                    select.select_by_value(doc_value)
+                                else:
+                                    logger.warning(f"Primary option '{doc_name}' has an empty or no 'value' attribute. Attempting selection by visible text.")
+                                    try:
+                                        select.select_by_visible_text(doc_name)
+                                    except NoSuchElementException:
+                                        logger.warning(f"Could not select '{doc_name}' by visible text, trying by index {index}.")
+                                        select.select_by_index(index)
+                                
+                                time.sleep(3) # Wait for selection to potentially update page
+
+                                secondary_docs_result = process_secondary_dropdown(driver, doc_info, doc_name, index)
+                                
+                                if secondary_docs_result and secondary_docs_result.get('documents'):
+                                    downloaded_documents.extend(secondary_docs_result['documents'])
+                                    all_document_urls.extend(secondary_docs_result.get('urls', []))
+                                    logger.info(f"Processed {len(secondary_docs_result['documents'])} secondary documents for '{doc_name}'.")
+                                    primary_dropdown_processed_successfully = True # Mark that at least one primary item led to docs
+                                else:
+                                    logger.info(f"No secondary documents found or processed for '{doc_name}'.")
+                                    
+                            except StaleElementReferenceException as sere:
+                                logger.error(f"StaleElementReferenceException while processing primary dropdown item {index + 1} ('{doc_name}'): {sere}")
+                                driver.save_screenshot(f"/tmp/error_primary_stale_{doc_info.get('referencia', 'unknown')}_{index+1}.png")
+                                # Skip this item and continue with the next
+                                continue 
+                            except Exception as e:
+                                logger.error(f"Error processing primary dropdown option {index + 1} ('{doc_name}'): {type(e).__name__} - {str(e)}")
+                                driver.save_screenshot(f"/tmp/error_primary_option_{doc_info.get('referencia', 'unknown')}_{index+1}.png")
+                                continue
                 
-                if mandatario_docs and mandatario_docs.get('success'):
-                    return mandatario_docs  # Return specialized result
-            except Exception as e:
-                logger.error(f"Error in specialized Mandatário handler: {str(e)}")
-                # Continue with other approaches
-        
-        # ====== STEP 3: TRY SECONDARY DROPDOWN DIRECTLY ======
-        if not downloaded_documents:
-            logger.info("Trying secondary dropdown directly")
-            try:
-                secondary_docs = process_secondary_dropdown(driver, doc_info)
+                except (NoSuchElementException, TimeoutException):
+                    logger.info(f"No primary dropdown (ID: dropDocs) found for {origem} document. Will try alternative approaches.")
                 
-                if secondary_docs:
-                    downloaded_documents.extend(secondary_docs['documents'])
-                    all_document_urls.extend(secondary_docs['urls'])
-                    logger.info(f"Processed {len(secondary_docs['documents'])} documents from secondary dropdown")
-            except Exception as e:
-                logger.error(f"Error processing secondary dropdown: {str(e)}")
-                # Continue with next approach
-        
-        # ====== STEP 4: TRY DIRECT DOWNLOAD LINK ======
-        if not downloaded_documents:
-            logger.info("Trying direct download link")
-            try:
-                download_link = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
-                )
+
+                # ====== STEP 2: IF PRIMARY APPROACH FAILED/YIELDED NO DOCS, AND ORIGEM IS MANDATARIO ======
+                if not downloaded_documents and origem == "Mandatário": # Check if primary dropdown didn't yield docs
+                    logger.info("Primary approach yielded no documents for Mandatário, or dropdown not found. Trying specialized Mandatário handler.")
+                    # Pass the max_retries parameter to handle_mandatario_document
+                    mandatario_docs_result = handle_mandatario_document(driver, doc_info, max_retries=2)
+                    if mandatario_docs_result and mandatario_docs_result.get('success'):
+                        logger.info("Specialized Mandatário handler was successful.")
+                        # If handler was successful, break out of retry loop
+                        return mandatario_docs_result 
+                    else:
+                        logger.info("Specialized Mandatário handler did not succeed or find documents.")
                 
-                if download_link:
-                    pdf_url = download_link.get_attribute('href')
-                    logger.info(f"Direct download link found: {pdf_url}")
+                # ====== STEP 3: TRY SECONDARY DROPDOWN DIRECTLY (if no docs from primary/Mandatario specific) ======
+                if not downloaded_documents:
+                    logger.info("No documents from primary/Mandatário specific. Trying secondary dropdown directly.")
+                    secondary_docs_direct = process_secondary_dropdown(driver, doc_info) # No primary_doc_name
+                    if secondary_docs_direct and secondary_docs_direct.get('documents'):
+                        downloaded_documents.extend(secondary_docs_direct['documents'])
+                        all_document_urls.extend(secondary_docs_direct.get('urls', []))
+                        logger.info(f"Processed {len(secondary_docs_direct['documents'])} documents from direct secondary dropdown.")
+                
+                # ====== STEP 4: TRY DIRECT DOWNLOAD LINK (if still no documents) ======
+                if not downloaded_documents:
+                    logger.info("Still no documents. Trying direct download link (ucActoView_hlDownload).")
+                    try:
+                        download_link_element = WebDriverWait(driver, 5).until(
+                            EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
+                        )
+                        pdf_url = download_link_element.get_attribute('href')
+                        if pdf_url:
+                            logger.info(f"Direct download link found: {pdf_url}")
+                            doc_result = download_single_document(driver, pdf_url, "principal_direct", doc_info)
+                            if doc_result and doc_result.get('success'):
+                                downloaded_documents.append(doc_result)
+                                all_document_urls.append(doc_result['doc_url'])
+                                logger.info("Direct download successful via ucActoView_hlDownload.")
+                        else:
+                            logger.warning("Direct download link (ucActoView_hlDownload) found, but href is empty.")
+                    except (NoSuchElementException, TimeoutException):
+                        logger.warning("No direct download link (ucActoView_hlDownload) found.")
+                
+                # ====== STEP 5: LAST RESORT - TRY IFRAME EXTRACTION (if still no documents) ======
+                if not downloaded_documents:
+                    logger.info("As a last resort, trying to extract from iframe.")
+                    iframe_docs_result = extract_from_iframe(driver, doc_info)
+                    if iframe_docs_result and iframe_docs_result.get('success'):
+                        logger.info("Iframe extraction was successful.")
+                        # Break out of retry loop
+                        return iframe_docs_result
+                    else:
+                        logger.info("Iframe extraction did not succeed or find documents.")
+                
+                # --- CHECK IF WE HAVE DOCUMENTS BEFORE CONTINUING ---
+                if downloaded_documents:
+                    # Success! We have documents, so break out of retry loop
+                    logger.info(f"Downloaded {len(downloaded_documents)} document(s), breaking retry loop")
+                    break
+                else:
+                    logger.warning(f"No documents downloaded in attempt {retry_attempt+1}/{max_retries}")
+                    # Continue to next retry iteration
                     
-                    # Download this document
-                    doc_result = download_single_document(driver, pdf_url, "principal", doc_info)
-                    
-                    if doc_result['success']:
-                        downloaded_documents.append(doc_result)
-                        all_document_urls.append(doc_result['doc_url'])
-                        logger.info("Direct download successful")
-            except (NoSuchElementException, TimeoutException):
-                logger.warning("No direct download link found")
-        
-        # ====== STEP 5: LAST RESORT - TRY IFRAME EXTRACTION ======
-        if not downloaded_documents:
-            logger.info("Trying to extract from iframe as last resort")
-            try:
-                iframe_docs = extract_from_iframe(driver, doc_info)
-                if iframe_docs and iframe_docs.get('success'):
-                    return iframe_docs
             except Exception as e:
-                logger.error(f"Error extracting from iframe: {str(e)}")
-                # This was our last approach
-        
-        # Return to previous page
-        driver.get(current_url)
-        
-        # Check if any documents were downloaded
+                logger.error(f"Critical error during document download attempt {retry_attempt+1}/{max_retries} for {doc_info.get('referencia', 'N/A')}: {type(e).__name__} - {str(e)}")
+                driver.save_screenshot(f"/tmp/critical_download_error_{doc_info.get('referencia', 'unknown')}_{retry_attempt+1}.png")
+                # Continue to next retry iteration
+                
+        # At this point, we've either succeeded or exhausted our retries
+        try:
+            # Navigate back to the original page
+            logger.info(f"Returning to original page: {current_url}")
+            driver.get(current_url)
+        except Exception as nav_error:
+            logger.error(f"Could not navigate back to original page: {nav_error}")
+                
+        # --- CONCLUDE AND RETURN ---
         if downloaded_documents:
-            # Return the first document as primary and attach the list of all
-            result = downloaded_documents[0].copy()
-            result['all_documents'] = downloaded_documents
-            result['all_document_urls'] = all_document_urls
-            result['multi_document'] = len(downloaded_documents) > 1
-            result['total_documents'] = len(downloaded_documents)
-            result['origem'] = origem
-            return result
+            main_doc_result = downloaded_documents[0].copy()
+            main_doc_result['all_documents'] = downloaded_documents
+            main_doc_result['all_document_urls'] = all_document_urls
+            main_doc_result['multi_document'] = len(downloaded_documents) > 1
+            main_doc_result['total_documents'] = len(downloaded_documents)
+            main_doc_result['origem'] = origem
+            # Basic metadata structure, can be expanded by the caller or upload function
+            main_doc_result['doc_metadata'] = {
+                'processo': doc_info.get('processo', ''),
+                'referencia': doc_info.get('referencia', ''),
+                'doc': main_doc_result.get('doc_url'), 
+                'document_stored': False, 
+                'document_type': main_doc_result.get('file_type', 'unknown'),
+                'origem': origem,
+                'download_attempted': True,
+                'last_accessed': datetime.now().isoformat()
+            }
+            logger.info(f"Successfully downloaded {len(downloaded_documents)} document(s) for {doc_info.get('referencia', 'N/A')}.")
+            return main_doc_result
         else:
-            # Create a fallback result if needed for specific origins
+            # Fallback for Mandatário if NO documents were downloaded after all retries
             if origem == "Mandatário":
-                logger.info("No documents downloaded for Mandatário. Using fallback approach.")
-                
-                fallback_result = {
-                    'success': True, 
-                    'file_path': None,
-                    'file_type': 'html',
-                    'processo': doc_info['processo'],
-                    'referencia': doc_info['referencia'],
-                    'doc_identifier': f"{origem.lower()}_fallback",
-                    'doc_url': doc_info['doc_url'],
-                    'is_fallback': True,
-                    'origem': origem
-                }
-                
-                # Create metadata for database record
-                doc_metadata = {
-                    'processo': doc_info.get('processo', ''),
-                    'referencia': doc_info.get('referencia', ''),
-                    'doc': doc_info['doc_url'],
-                    'document_stored': False,
-                    'document_type': origem.lower(),
-                    'origem': origem,
-                    'download_attempted': True,
+                logger.warning("No documents downloaded for Mandatário after all attempts. Using fallback (saving popup URL).")
+                fallback_metadata = {
+                    'processo': doc_info.get('processo', ''), 'referencia': doc_info.get('referencia', ''),
+                    'doc': doc_info['doc_url'], 'document_stored': False, 'document_type': 'html_link',
+                    'origem': origem, 'download_attempted': True, 'download_successful': False,
                     'last_accessed': datetime.now().isoformat()
                 }
-                
-                # Create a result with fallback metadata
-                result = fallback_result.copy()
-                result['all_documents'] = [fallback_result]
-                result['all_document_urls'] = [doc_info['doc_url']]
-                result['multi_document'] = False
-                result['total_documents'] = 1
-                result['doc_metadata'] = doc_metadata
-                
-                return result
+                return {
+                    'success': True, 'is_fallback': True, 'file_path': None, 'file_type': 'html_link',
+                    'processo': doc_info['processo'], 'referencia': doc_info['referencia'],
+                    'doc_identifier': f"{origem.lower()}_fallback_link", 'doc_url': doc_info['doc_url'],
+                    'all_documents': [], 'all_document_urls': [doc_info['doc_url']],
+                    'multi_document': False, 'total_documents': 0, 'origem': origem,
+                    'doc_metadata': fallback_metadata
+                }
             else:
-                logger.error(f"No documents were successfully downloaded for {origem}")
-                return {'success': False, 'error_message': f"No documents were successfully downloaded for {origem}"}
-    
-    except Exception as e:
-        logger.error(f"Error downloading document: {str(e)}")
-        # Take a screenshot for debugging
-        try:
-            driver.save_screenshot(f"/tmp/download_error_{doc_info['referencia']}_{int(time.time())}.png")
-        except:
-            pass
-            
-        # Return to previous page
-        try:
-            driver.get(current_url)
-        except:
-            pass
-        
-        return {'success': False, 'error_message': str(e)}
-        
+                logger.error(f"No documents were successfully downloaded for {origem} ({doc_info.get('referencia', 'N/A')}) after {max_retries} attempts.")
+                return {'success': False, 'error_message': f"No documents downloaded for {origem} ({doc_info.get('referencia', 'N/A')}) after {max_retries} attempts"}
     finally:
-        # Restore original timeout
-        driver.set_page_load_timeout(original_timeout)
+        if hasattr(driver, 'set_page_load_timeout'):
+            try:
+                # Restore original timeout
+                driver.set_page_load_timeout(original_timeout_value / 1000 if isinstance(original_timeout_value, (int, float)) and original_timeout_value > 1000 else original_timeout_value)
+            except Exception as te:
+                logger.warning(f"Could not restore page load timeout: {te}")
 
-def handle_mandatario_document(driver, doc_info):
+def handle_mandatario_document(driver, doc_info, max_retries=3):
     """
     Specialized handler for Mandatário documents which have a different structure.
     Focuses on finding the secondary dropdown and download links directly.
+    Implements retry mechanism to handle stale element references.
     """
     logger.info("Using specialized Mandatário document handler")
     downloaded_documents = []
     all_document_urls = []
     
-    try:
-        # In Mandatário documents, we should focus directly on the secondary dropdown
-        secondary_dropdown = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
-        )
-        
-        # Get all options from the secondary dropdown
-        secondary_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
-        secondary_values = [option.get_attribute('value') for option in secondary_options]
-        secondary_texts = [option.text for option in secondary_options]
-        
-        total_secondary_docs = len(secondary_values)
-        logger.info(f"Found {total_secondary_docs} document(s) in Mandatário secondary dropdown")
-        
-        # Process each document in the secondary dropdown
-        for index, (doc_value, doc_name) in enumerate(zip(secondary_values, secondary_texts)):
-            logger.info(f"Processing Mandatário document {index+1}/{total_secondary_docs}: {doc_name}")
+    for retry_attempt in range(max_retries):
+        try:
+            if retry_attempt > 0:
+                logger.info(f"Retry attempt {retry_attempt} for Mandatário document handling")
+                # Refresh the page on retry attempts to get fresh elements
+                driver.refresh()
+                time.sleep(3)  # Wait for page to reload
             
-            try:
-                # Select this document in the dropdown
-                select = Select(secondary_dropdown)
-                select.select_by_value(doc_value)
-                time.sleep(2)  # Wait for selection to load
+            # In Mandatário documents, we should focus directly on the secondary dropdown
+            secondary_dropdown = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
+            )
+            
+            # Get all options from the secondary dropdown
+            secondary_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
+            secondary_values = [option.get_attribute('value') for option in secondary_options]
+            secondary_texts = [option.text for option in secondary_options]
+            
+            total_secondary_docs = len(secondary_values)
+            logger.info(f"Found {total_secondary_docs} document(s) in Mandatário secondary dropdown")
+            
+            # Store document processing status to identify failures
+            processed_docs = [False] * total_secondary_docs
+            
+            # Process each document in the secondary dropdown
+            for index, (doc_value, doc_name) in enumerate(zip(secondary_values, secondary_texts)):
+                # Skip already processed documents on retries
+                if processed_docs[index]:
+                    logger.info(f"Document {index+1}/{total_secondary_docs}: {doc_name} already processed, skipping")
+                    continue
+                    
+                logger.info(f"Processing Mandatário document {index+1}/{total_secondary_docs}: {doc_name}")
                 
-                # Find download link for this document
-                download_link = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
-                )
-                
-                if download_link:
-                    pdf_url = download_link.get_attribute('href')
-                    logger.info(f"Download link found for {doc_name}: {pdf_url}")
+                try:
+                    # Re-fetch the dropdown on each iteration to avoid stale references
+                    secondary_dropdown = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
+                    )
                     
-                    # Create specific identifier for this document
-                    doc_identifier = f"mandatario_{index+1}_{sanitize_filename(doc_name)}"
+                    # Re-fetch all options
+                    fresh_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
                     
-                    # Download this document
-                    doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
-                    
-                    if doc_result['success']:
-                        downloaded_documents.append(doc_result)
-                        all_document_urls.append(doc_result['doc_url'])
-                        logger.info(f"Mandatário document {index+1} downloaded successfully")
+                    # Ensure the index is still valid for the refreshed list
+                    if index < len(fresh_options):
+                        # Get current option and its value
+                        current_option = fresh_options[index]
+                        current_value = current_option.get_attribute('value')
+                        current_text = current_option.text
+                        
+                        # Select this document in the dropdown
+                        select = Select(secondary_dropdown)
+                        select.select_by_value(current_value)
+                        time.sleep(2)  # Wait for selection to load
+                        
+                        # Find download link for this document
+                        download_link = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
+                        )
+                        
+                        if download_link:
+                            pdf_url = download_link.get_attribute('href')
+                            logger.info(f"Download link found for {current_text}: {pdf_url}")
+                            
+                            # Create specific identifier for this document
+                            doc_identifier = f"mandatario_{index+1}_{sanitize_filename(current_text)}"
+                            
+                            # Download this document
+                            doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
+                            
+                            if doc_result['success']:
+                                downloaded_documents.append(doc_result)
+                                all_document_urls.append(doc_result['doc_url'])
+                                logger.info(f"Mandatário document {index+1} downloaded successfully")
+                                processed_docs[index] = True  # Mark as successfully processed
+                            else:
+                                logger.error(f"Failed to download Mandatário document {index+1}: {doc_result.get('error_message')}")
+                        else:
+                            logger.warning(f"No download link found for Mandatário document {current_text}")
                     else:
-                        logger.error(f"Failed to download Mandatário document {index+1}: {doc_result.get('error_message')}")
-                else:
-                    logger.warning(f"No download link found for Mandatário document {doc_name}")
+                        logger.warning(f"Index {index} is out of bounds for refreshed options list (length: {len(fresh_options)})")
+                
+                except StaleElementReferenceException as stale_err:
+                    logger.error(f"Stale element reference error processing Mandatário document {index+1}: {stale_err}")
+                    # Don't mark as processed, will retry in next iteration
+                    driver.save_screenshot(f"/tmp/stale_error_mandatario_{doc_info.get('referencia', 'unknown')}_{index+1}.png")
+                    # Break the inner loop to restart with fresh elements
+                    break
+                    
+                except Exception as doc_error:
+                    logger.error(f"Error processing Mandatário document {index+1}: {str(doc_error)}")
+                    # Don't mark as processed, will retry in next iteration
+                    continue
             
-            except Exception as doc_error:
-                logger.error(f"Error processing Mandatário document {index+1}: {str(doc_error)}")
-                # Continue with next document
-                continue
+            # Check if all documents were processed
+            if all(processed_docs):
+                logger.info(f"All {total_secondary_docs} Mandatário documents processed successfully")
+                # Exit retry loop if all documents were processed
+                break
+            elif downloaded_documents:
+                # Some documents were downloaded, but not all - continue to next retry
+                logger.warning(f"Processed {sum(processed_docs)}/{total_secondary_docs} Mandatário documents. Will retry remaining.")
+            else:
+                # No documents downloaded at all - try iframe approach before next retry
+                logger.warning("No documents downloaded in Mandatário handler attempt")
         
-        # If we found documents, return results
-        if downloaded_documents:
-            logger.info(f"Successfully processed {len(downloaded_documents)} Mandatário documents")
-            result = downloaded_documents[0].copy()
-            result['all_documents'] = downloaded_documents
-            result['all_document_urls'] = all_document_urls
-            result['multi_document'] = len(downloaded_documents) > 1
-            result['total_documents'] = len(downloaded_documents)
-            result['mandatario_document'] = True
-            return result
-        else:
-            # Try fallback to iframe approach
-            iframe_docs = extract_from_iframe(driver, doc_info)
-            if iframe_docs and iframe_docs['success']:
-                return iframe_docs
+        except Exception as e:
+            logger.error(f"Error in Mandatário document handler (attempt {retry_attempt+1}/{max_retries}): {str(e)}")
+            # Continue to next retry
             
-            logger.warning("No documents downloaded in Mandatário handler")
-            return {'success': False, 'error_message': "No documents found in Mandatário handler"}
-    
-    except Exception as e:
-        logger.error(f"Error in Mandatário document handler: {str(e)}")
-        
+    # End of retry loop
+            
+    # If we found documents, return results
+    if downloaded_documents:
+        logger.info(f"Successfully processed {len(downloaded_documents)} Mandatário documents")
+        result = downloaded_documents[0].copy()
+        result['all_documents'] = downloaded_documents
+        result['all_document_urls'] = all_document_urls
+        result['multi_document'] = len(downloaded_documents) > 1
+        result['total_documents'] = len(downloaded_documents)
+        result['mandatario_document'] = True
+        return result
+    else:
         # Try fallback to iframe approach
+        logger.info("No documents downloaded via dropdown method, trying iframe fallback")
         iframe_docs = extract_from_iframe(driver, doc_info)
-        if iframe_docs and iframe_docs['success']:
+        if iframe_docs and iframe_docs.get('success'):
             return iframe_docs
-            
-        return {'success': False, 'error_message': str(e)}
-
+        
+        logger.warning("No documents downloaded in Mandatário handler after all attempts")
+        return {'success': False, 'error_message': "No documents found in Mandatário handler"}
+    
 def extract_from_iframe(driver, doc_info):
     """
     Attempt to extract document URLs directly from the iframe.
@@ -693,8 +767,31 @@ def process_secondary_dropdown(driver, doc_info, primary_doc_name=None, primary_
         
         # Get all options from the secondary dropdown
         secondary_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
-        secondary_values = [option.get_attribute('value') for option in secondary_options]
-        secondary_texts = [option.text for option in secondary_options]
+        
+        # Store option values and texts in separate lists to avoid stale references
+        secondary_values = []
+        secondary_texts = []
+        
+        for option in secondary_options:
+            try:
+                secondary_values.append(option.get_attribute('value'))
+                secondary_texts.append(option.text)
+            except StaleElementReferenceException:
+                # If element became stale while extracting attributes, break and try again
+                logger.warning("Encountered stale element while preparing secondary dropdown options, refreshing elements")
+                # Re-fetch elements
+                secondary_dropdown = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
+                )
+                secondary_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
+                # Clear lists and start over
+                secondary_values = []
+                secondary_texts = []
+                # Get all values and texts in one pass to minimize stale references
+                for opt in secondary_options:
+                    secondary_values.append(opt.get_attribute('value'))
+                    secondary_texts.append(opt.text)
+                break
         
         total_secondary_docs = len(secondary_values)
         if primary_doc_name:
@@ -702,60 +799,87 @@ def process_secondary_dropdown(driver, doc_info, primary_doc_name=None, primary_
         else:
             logger.info(f"Found {total_secondary_docs} documents in secondary dropdown")
         
-        # Process each document in the secondary dropdown
-        for sec_index in range(total_secondary_docs):
-            # We need to re-find the dropdown and options for each iteration to avoid stale references
-            try:
-                # Re-find the dropdown element
-                secondary_dropdown = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
-                )
-                
-                # Re-get the options
-                secondary_options = secondary_dropdown.find_elements(By.TAG_NAME, "option")
-                
-                # Get the current option value and text
-                current_value = secondary_options[sec_index].get_attribute('value')
-                current_text = secondary_options[sec_index].text
-                
-                logger.info(f"Processing secondary document {sec_index+1}/{total_secondary_docs}: {current_text}")
-                
-                # Select this document in the dropdown
-                select = Select(secondary_dropdown)
-                select.select_by_value(current_value)
-                time.sleep(2)  # Wait for selection to load
-                
-                # Find download link for this document
-                download_link = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
-                )
-                
-                if download_link:
-                    pdf_url = download_link.get_attribute('href')
-                    logger.info(f"Download link found for {current_text}: {pdf_url}")
+        # Keep track of processed documents
+        processed_docs = [False] * total_secondary_docs
+        
+        # Try up to 3 times to process all documents
+        for retry in range(3):
+            # Process each document in the secondary dropdown
+            for sec_index in range(total_secondary_docs):
+                # Skip already processed documents
+                if processed_docs[sec_index]:
+                    continue
                     
-                    # Create specific identifier for this document
-                    if primary_doc_name:
-                        doc_identifier = f"{primary_index+1}_{sanitize_filename(primary_doc_name)}_{sec_index+1}_{sanitize_filename(current_text)}"
+                try:
+                    # Re-find the dropdown element for each iteration
+                    secondary_dropdown = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
+                    )
+                    
+                    current_value = secondary_values[sec_index]
+                    current_text = secondary_texts[sec_index]
+                    
+                    logger.info(f"Processing secondary document {sec_index+1}/{total_secondary_docs}: {current_text}")
+                    
+                    # Select this document in the dropdown
+                    select = Select(secondary_dropdown)
+                    select.select_by_value(current_value)
+                    time.sleep(2)  # Wait for selection to load
+                    
+                    # Find download link for this document
+                    download_link = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "ucActoView_hlDownload"))
+                    )
+                    
+                    if download_link:
+                        pdf_url = download_link.get_attribute('href')
+                        logger.info(f"Download link found for {current_text}: {pdf_url}")
+                        
+                        # Create specific identifier for this document
+                        if primary_doc_name:
+                            doc_identifier = f"{primary_index+1}_{sanitize_filename(primary_doc_name)}_{sec_index+1}_{sanitize_filename(current_text)}"
+                        else:
+                            doc_identifier = f"{sec_index+1}_{sanitize_filename(current_text)}"
+                        
+                        # Download this document
+                        doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
+                        
+                        if doc_result['success']:
+                            downloaded_documents.append(doc_result)
+                            all_document_urls.append(doc_result['doc_url'])
+                            logger.info(f"Secondary document {sec_index+1} downloaded successfully")
+                            processed_docs[sec_index] = True  # Mark as processed
+                        else:
+                            logger.error(f"Failed to download secondary document {sec_index+1}: {doc_result.get('error_message')}")
                     else:
-                        doc_identifier = f"{sec_index+1}_{sanitize_filename(current_text)}"
+                        logger.warning(f"No download link found for document {current_text}")
+                
+                except StaleElementReferenceException as stale_err:
+                    logger.warning(f"Stale element reference while processing secondary document {sec_index+1}: {stale_err}")
+                    # Don't mark as processed, will retry
+                    break  # Break inner loop to refresh all elements
                     
-                    # Download this document
-                    doc_result = download_single_document(driver, pdf_url, doc_identifier, doc_info)
-                    
-                    if doc_result['success']:
-                        downloaded_documents.append(doc_result)
-                        all_document_urls.append(doc_result['doc_url'])
-                        logger.info(f"Secondary document {sec_index+1} downloaded successfully")
-                    else:
-                        logger.error(f"Failed to download secondary document {sec_index+1}: {doc_result.get('error_message')}")
-                else:
-                    logger.warning(f"No download link found for document {current_text}")
+                except Exception as doc_error:
+                    logger.error(f"Error processing secondary document {sec_index+1}: {str(doc_error)}")
+                    # Continue with next document
+                    continue
             
-            except Exception as doc_error:
-                logger.error(f"Error processing secondary document {sec_index+1}: {str(doc_error)}")
-                # Continue with next document
-                continue
+            # Check if all documents have been processed
+            if all(processed_docs):
+                logger.info("All secondary documents processed successfully")
+                break
+            elif retry < 2:  # Don't log this on last iteration
+                logger.info(f"Retry {retry+1}/3: Some secondary documents not processed, refreshing elements")
+                # Refresh the page or elements before next retry
+                try:
+                    # Try refreshing the dropdown without reloading the page
+                    secondary_dropdown = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "ucActoView_ucDocumentosAto_ddlDocumentos"))
+                    )
+                    time.sleep(1)
+                except:
+                    # If dropdown can't be found, we may need more aggressive refresh
+                    pass
         
         # Return results
         if downloaded_documents:
@@ -769,7 +893,7 @@ def process_secondary_dropdown(driver, doc_info, primary_doc_name=None, primary_
     except Exception as e:
         logger.error(f"Error processing secondary dropdown: {str(e)}")
         return None
-                
+               
 def sanitize_filename(filename):
     """
     Sanitizes a filename to ensure it's safe for file systems.
@@ -844,7 +968,7 @@ def download_single_document(driver, pdf_url, doc_identifier, doc_info):
         
         # Download the document
         logger.info(f"Downloading document from: {pdf_url}")
-        response = session.get(pdf_url, stream=True, timeout=30)
+        response = session.get(pdf_url, stream=True)
         
         if response.status_code == 200:
             # Check content type to determine file type

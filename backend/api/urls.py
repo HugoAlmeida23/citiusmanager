@@ -25,4 +25,6 @@ urlpatterns = [
     path('toggl-notion/check-credentials/', views.check_credentials, name='toggl_notion_check_credentials'),
     path('toggl-notion/save-credentials/', views.save_credentials, name='toggl_notion_save_credentials'),
     path('transcription/status/<str:job_id>/', views.transcription_status, name='transcription_status'),
+    path('change-password/', views.change_password, name='change_password'),  # New endpoint for changing password
+
 ]

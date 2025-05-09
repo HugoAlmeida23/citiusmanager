@@ -36,3 +36,25 @@ class CitiusAccountSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'password', 'advogado', 'is_active', 
                  'last_used', 'created_at', 'updated_at', 'email', 'additional_emails']
         read_only_fields = ['created_at', 'updated_at', 'last_used', 'user']
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Senha atual incorreta.")
+        return value
+
+    def validate_new_password(self, value):
+        # You can add more validation here (password strength, etc.)
+        if len(value) < 8:
+            raise serializers.ValidationError("A nova senha deve ter pelo menos 8 caracteres.")
+        return value
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user

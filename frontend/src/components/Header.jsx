@@ -102,6 +102,14 @@ function Header() {
             <div className="tooltip">Toggl-Notion</div>
           </li>
           <li>
+            <a href="./change-password" onClick={isMobile ? toggleSidebar : undefined}>
+              <span className="icon fas fa-key text-white"></span>
+              <span className="item-name">Alterar Senha</span>
+            </a>
+            <div className="tooltip">Alterar Senha</div>
+          </li>
+          <li></li>
+          <li>
             <a href="./logout" onClick={isMobile ? toggleSidebar : undefined}>
               <span className="icon fa-solid fa-arrow-right-from-bracket text-white"></span>
               <span className="item-name">Sair</span>

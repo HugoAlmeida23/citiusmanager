@@ -9,6 +9,7 @@ import AccountsManagement from "./pages/Account"
 import { ToastContainer } from 'react-toastify';
 import AudioTranscription from "./pages/AudioTranscription"
 import TogglNotionIntegration from "./pages/TogglNotion"
+import ChangePassword from "./pages/ChangePassword"
 
 function Logout() {
   localStorage.clear()
@@ -36,6 +37,14 @@ function App() {
         <Route path="/logout" element={<Logout />} />
         <Route path="/register" element={<RegisterAndLogout />} />
         <Route path="*" element={<NotFound />}></Route>
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/accounts"
           element={
