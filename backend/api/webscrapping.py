@@ -65,7 +65,7 @@ def safe_text(text):
         return text.replace("-", "/")  # Usando hífen não-quebrável (non-breaking hyphen)
     return text
 
-def send_email(subject, body, recipient_data):
+def send_email(subject, body, recipient_data, error=False):
     """
     Send a professional HTML email using AWS SES with responsive design and formatting
     
@@ -124,237 +124,258 @@ def send_email(subject, body, recipient_data):
     # Format current date
     current_date = datetime.now().strftime("%d/%m/%Y")
     
-    # Parse notifications text and create table rows
-    notifications = []
-    if "novas notificações:" in body:
-        lines = body.split("\n\n")[1].strip().split("\n")
-        for line in lines:
-            # Parse notification line with regex - agora com campos adicionais
-            # Update the regex pattern to capture all four groups
-            match = re.match(r"Responsável - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*)", line)
-            if match:
-                advogado, especie, acto, tribunal, unidade, origem, data = match.groups()
-                notifications.append({
-                    
-                    "advogado": advogado.strip(),
-                    "especie": especie.strip(),
-                    "acto": acto.strip(),
-                    "tribunal": tribunal.strip(),
-                    "unidade": unidade.strip(),
-                    "origem": origem.strip(),
-                    "data": data.strip()
-                })
-    
-    # Create HTML table rows
-    table_rows = ""
-    for i, notif in enumerate(notifications):
-        bg_color = "#f2f7ff" if i % 2 == 0 else "#ffffff"
-        table_rows += f"""
-        <tr style="background-color: {bg_color};">
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal; ">{safe_text(notif['advogado'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['especie'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['acto'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['tribunal'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['unidade'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['origem'])}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['data'])}</td>
-        </tr>
-        """
-    
-    # Create HTML email content with responsive design
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{subject}</title>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-            body {{
-                font-family: 'Roboto', Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                margin: 0;
-                padding: 0;
-                background-color: #f5f7fa;
-            }}
-            .container {{
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #ffffff;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }}
-            .header {{
-                padding: 20px 0;
-                text-align: center;
-                border-bottom: 1px solid #e1e4e8;
-                margin-bottom: 20px;
-            }}
-            .logo {{
-                max-width: 180px;
-                height: auto;
-            }}
-            .content {{
-                padding: 0 20px;
-            }}
-            .notification-count {{
-                font-size: 18px;
-                font-weight: 500;
-                margin-bottom: 20px;
-                color: #2d3748;
-            }}
-            .table-container {{
-                overflow-x: auto;
-                margin-bottom: 20px;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 20px;
-                table-layout: fixed;
-            }}
-            th {{
-                background-color: #1a56db;
-                color: white;
-                font-weight: 500;
-                text-align: left;
-                padding: 12px;
-                font-size: 13px;
-                overflow: hidden;
-            }}
-            td {{
-                font-size: 12px;
-                padding: 12px;
-                border-bottom: 1px solid #e1e4e8;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-                word-break: break-word;
-                vertical-align: top;
-                max-width: 0; /* Forces cell to respect width constraints */
-            }}
-            table td {{
-                font-size: 12px;
-                padding: 12px;
-                border-bottom: 1px solid #e1e4e8;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-                word-break: break-word;
-                vertical-align: top;
-                max-width: 0;
-                white-space: normal !important; /* Forçar quebra de linha */
-
-            }}
-            .footer {{
-                text-align: center;
-                padding-top: 20px;
-                border-top: 1px solid #e1e4e8;
-                color: #718096;
-                font-size: 14px;
-            }}
-            @media screen and (max-width: 800px) {{
+    if error==False:
+        # Parse notifications text and create table rows
+        notifications = []
+        if "novas notificações:" in body:
+            lines = body.split("\n\n")[1].strip().split("\n")
+            for line in lines:
+                # Parse notification line with regex - agora com campos adicionais
+                # Update the regex pattern to capture all four groups
+                match = re.match(r"Responsável - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*?) - (.*)", line)
+                if match:
+                    advogado, especie, acto, tribunal, unidade, origem, data = match.groups()
+                    notifications.append({
+                        
+                        "advogado": advogado.strip(),
+                        "especie": especie.strip(),
+                        "acto": acto.strip(),
+                        "tribunal": tribunal.strip(),
+                        "unidade": unidade.strip(),
+                        "origem": origem.strip(),
+                        "data": data.strip()
+                    })
+        
+        # Create HTML table rows
+        table_rows = ""
+        for i, notif in enumerate(notifications):
+            bg_color = "#f2f7ff" if i % 2 == 0 else "#ffffff"
+            table_rows += f"""
+            <tr style="background-color: {bg_color};">
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal; ">{safe_text(notif['advogado'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['especie'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['acto'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['tribunal'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['unidade'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['origem'])}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e1e4e8; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 0; white-space: normal;">{safe_text(notif['data'])}</td>
+            </tr>
+            """
+        
+        # Create HTML email content with responsive design
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="pt">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{subject}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+                body {{
+                    font-family: 'Roboto', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f5f7fa;
+                }}
                 .container {{
-                    width: 100%;
-                    border-radius: 0;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #ffffff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                }}
+                .header {{
+                    padding: 20px 0;
+                    text-align: center;
+                    border-bottom: 1px solid #e1e4e8;
+                    margin-bottom: 20px;
+                }}
+                .logo {{
+                    max-width: 180px;
+                    height: auto;
+                }}
+                .content {{
+                    padding: 0 20px;
+                }}
+                .notification-count {{
+                    font-size: 18px;
+                    font-weight: 500;
+                    margin-bottom: 20px;
+                    color: #2d3748;
+                }}
+                .table-container {{
+                    overflow-x: auto;
+                    margin-bottom: 20px;
                 }}
                 table {{
-                    display: block;
-                    overflow-x: auto;
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                    table-layout: fixed;
+                }}
+                th {{
+                    background-color: #1a56db;
+                    color: white;
+                    font-weight: 500;
+                    text-align: left;
+                    padding: 12px;
+                    font-size: 13px;
+                    overflow: hidden;
                 }}
                 td {{
-                font-size: 10px;
+                    font-size: 12px;
+                    padding: 12px;
+                    border-bottom: 1px solid #e1e4e8;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    word-break: break-word;
+                    vertical-align: top;
+                    max-width: 0; /* Forces cell to respect width constraints */
                 }}
-            }}
-            /* Ajuste de largura para 7 colunas */
-            table th:nth-child(1), table td:nth-child(1) {{ width: 8%; }}  /* advogado */
-            table th:nth-child(2), table td:nth-child(2) {{ width: 15%; }} /* especie */
-            table th:nth-child(3), table td:nth-child(3) {{ width: 10%; }} /* acto */
-            table th:nth-child(4), table td:nth-child(4) {{ width: 25%; }} /* tribunal */
-            table th:nth-child(5), table td:nth-child(5) {{ width: 25%; }} /* unidade */
-            table th:nth-child(6), table td:nth-child(6) {{ width: 7%; }}  /* origem */
-            table th:nth-child(7), table td:nth-child(7) {{ width: 10%; }} /* data */
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <!-- Logo placeholder - replace with your actual logo URL -->
-                <h2 style="color: #1a56db; margin: 0;">Notificações Citius</h2>
-                <p style="color: #718096; margin: 5px 0 0 0;">Data: {current_date}</p>
-            </div>
-            
-            <div class="content">
-                <p class="notification-count">Tem {len(notifications)} novas notificações:</p>
-                
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Responsável</th>
-                                <th>Espécie</th>
-                                <th>Acto</th>
-                                <th>Tribunal</th>
-                                <th>Unidade</th>
-                                <th>Origem</th>
-                                <th>Data</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {table_rows}
-                        </tbody>
-                    </table>
+                table td {{
+                    font-size: 12px;
+                    padding: 12px;
+                    border-bottom: 1px solid #e1e4e8;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    word-break: break-word;
+                    vertical-align: top;
+                    max-width: 0;
+                    white-space: normal !important; /* Forçar quebra de linha */
+
+                }}
+                .footer {{
+                    text-align: center;
+                    padding-top: 20px;
+                    border-top: 1px solid #e1e4e8;
+                    color: #718096;
+                    font-size: 14px;
+                }}
+                @media screen and (max-width: 800px) {{
+                    .container {{
+                        width: 100%;
+                        border-radius: 0;
+                    }}
+                    table {{
+                        display: block;
+                        overflow-x: auto;
+                    }}
+                    td {{
+                    font-size: 10px;
+                    }}
+                }}
+                /* Ajuste de largura para 7 colunas */
+                table th:nth-child(1), table td:nth-child(1) {{ width: 8%; }}  /* advogado */
+                table th:nth-child(2), table td:nth-child(2) {{ width: 15%; }} /* especie */
+                table th:nth-child(3), table td:nth-child(3) {{ width: 10%; }} /* acto */
+                table th:nth-child(4), table td:nth-child(4) {{ width: 25%; }} /* tribunal */
+                table th:nth-child(5), table td:nth-child(5) {{ width: 25%; }} /* unidade */
+                table th:nth-child(6), table td:nth-child(6) {{ width: 7%; }}  /* origem */
+                table th:nth-child(7), table td:nth-child(7) {{ width: 10%; }} /* data */
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <!-- Logo placeholder - replace with your actual logo URL -->
+                    <h2 style="color: #1a56db; margin: 0;">Notificações Citius</h2>
+                    <p style="color: #718096; margin: 5px 0 0 0;">Data: {current_date}</p>
                 </div>
                 
-                <p style="margin-top: 20px;">Para mais detalhes, acesse a sua conta na plataforma Citius.</p>
+                <div class="content">
+                    <p class="notification-count">Tem {len(notifications)} novas notificações:</p>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Responsável</th>
+                                    <th>Espécie</th>
+                                    <th>Acto</th>
+                                    <th>Tribunal</th>
+                                    <th>Unidade</th>
+                                    <th>Origem</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {table_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <p style="margin-top: 20px;">Para mais detalhes, acesse a sua conta na plataforma Citius.</p>
+                </div>
+                
+                <div class="footer">
+                    <p>Este é um email automático. Por favor, não responda a esta mensagem.</p>
+                    <p>&copy; {datetime.now().year} Soft Solutions. Todos os direitos reservados.</p>
+                </div>
             </div>
-            
-            <div class="footer">
-                <p>Este é um email automático. Por favor, não responda a esta mensagem.</p>
-                <p>&copy; {datetime.now().year} Soft Solutions. Todos os direitos reservados.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    # Create text version as backup for email clients that don't support HTML
-    text_body = f"Notificações Citius - {current_date}\n\n"
-    text_body += f"Tem {len(notifications)} novas notificações:\n\n"
-    for notif in notifications:
-        text_body += f"Responsável: {notif['advogado']}\n"
-        text_body += f"Espécie: {notif['especie']}\n"
-        text_body += f"Acto: {notif['acto']}\n"
-        text_body += f"Tribunal: {notif['tribunal']}\n"
-        text_body += f"Unidade: {notif['unidade']}\n"
-        text_body += f"Origem: {notif['origem']}\n"
-        text_body += f"Data: {notif['data']}\n\n"
-    text_body += "Para mais detalhes, acesse a sua conta na plataforma Citius.\n\n"
-    text_body += f"© {datetime.now().year} Soft Solutions. Todos os direitos reservados."
-    
-    try:
-        # Send email with both HTML and plain text versions
-        response = client.send_email(
-            Source='no-reply@softsolutions.com.pt',
-            Destination={'ToAddresses': all_recipient_emails},  # Agora usando a lista de todos os emails
-            Message={
-                'Subject': {'Data': subject},
-                'Body': {
-                    'Text': {'Data': text_body},
-                    'Html': {'Data': html_content}
+        </body>
+        </html>
+        """
+        
+        # Create text version as backup for email clients that don't support HTML
+        text_body = f"Notificações Citius - {current_date}\n\n"
+        text_body += f"Tem {len(notifications)} novas notificações:\n\n"
+        for notif in notifications:
+            text_body += f"Responsável: {notif['advogado']}\n"
+            text_body += f"Espécie: {notif['especie']}\n"
+            text_body += f"Acto: {notif['acto']}\n"
+            text_body += f"Tribunal: {notif['tribunal']}\n"
+            text_body += f"Unidade: {notif['unidade']}\n"
+            text_body += f"Origem: {notif['origem']}\n"
+            text_body += f"Data: {notif['data']}\n\n"
+        text_body += "Para mais detalhes, acesse a sua conta na plataforma Citius.\n\n"
+        text_body += f"© {datetime.now().year} Soft Solutions. Todos os direitos reservados."
+        
+        try:
+            # Send email with both HTML and plain text versions
+            response = client.send_email(
+                Source='no-reply@softsolutions.com.pt',
+                Destination={'ToAddresses': all_recipient_emails},  # Agora usando a lista de todos os emails
+                Message={
+                    'Subject': {'Data': subject},
+                    'Body': {
+                        'Text': {'Data': text_body},
+                        'Html': {'Data': html_content}
+                    }
                 }
-            }
-        )
-        logger.info(f"Enviando email para: {all_recipient_emails}")
-        logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
-        return True
-    except ClientError as e:
-        logger.error(f"Falha ao enviar o email: {str(e)}")
-        return False
+            )
+            logger.info(f"Enviando email para: {all_recipient_emails}")
+            logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
+            return True
+        except ClientError as e:
+            logger.error(f"Falha ao enviar o email: {str(e)}")
+            return False
+    else:
+        try:
+            # Send email with both HTML and plain text versions
+            response = client.send_email(
+                Source='no-reply@softsolutions.com.pt',
+                Destination={'ToAddresses': all_recipient_emails},  # Agora usando a lista de todos os emails
+                Message={
+                    'Subject': {'Data': subject},
+                    'Body': {
+                        'Text': {'Data': body},
+                    }
+                }
+            )
+            logger.info(f"Enviando email para: {all_recipient_emails}")
+            logger.info(f"Email enviado com sucesso: {response['MessageId']} para {len(all_recipient_emails)} destinatários")
+            return True
+        except ClientError as e:
+            logger.error(f"Falha ao enviar o email: {str(e)}")
+            return False
+        
 
 def scrape_citius_data():
     """Scrape data from Citius for all active accounts"""
-
+    logger.info("Eu estou a ser utilizado! ")
     active_accounts = CitiusAccount.objects.filter(is_active=True, advogado="Tiago")
     
     if not active_accounts.exists():
@@ -422,7 +443,6 @@ def scrape_citius_data():
         # Always close the driver
         driver.quit()
         logger.info("Closed WebDriver")
-
 
 def process_account(driver, supabase, account):
     """Process a single Citius account with document download and storage"""
@@ -562,6 +582,9 @@ def process_account(driver, supabase, account):
 
                 row_dict["created_at"] = timezone.now().isoformat()
 
+                row_dict["document_status"] = 'pending'
+
+                row_dict["alerted"] = False
                 # Find the popup link and extract the URL
                 doc_url = "em breve"
                 row_dict["doc"] = doc_url

@@ -39,10 +39,9 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 SUPABASE_BUCKET_NAME = "citiusdocuments"  # Nome do bucket no Supabase Storage
 
 def update_db_record(supabase: Client, doc_metadata: dict):
-   
     try:
         target_referencia = doc_metadata.get('referencia')
-        target_user_id = doc_metadata.get('user_id')  # Adiciona user_id para filtro
+        target_user_id = doc_metadata.get('user_id')
         
         if not target_user_id:
             logger.error("Erro: 'user_id' ausente nos metadados do documento. Impossível atualizar DB.")
@@ -53,10 +52,9 @@ def update_db_record(supabase: Client, doc_metadata: dict):
             return False
 
         # 1. Verificar se o registro já existe e obter o ID e o valor atual de 'doc'
-        # Agora também selecionamos o campo 'doc' para verificar seu valor atual
         result = (
             supabase.table('api_processo')
-            .select('id, doc')
+            .select('id, doc, alerted')  # Include 'alerted' in the select
             .eq('referencia', target_referencia)
             .eq('user_id', target_user_id)
             .limit(1)
@@ -66,6 +64,7 @@ def update_db_record(supabase: Client, doc_metadata: dict):
         if result.data:
             record_id = result.data[0]['id']
             current_doc = result.data[0].get('doc', '')
+            current_alerted = result.data[0].get('alerted', False)  # Get current alerted value
             
             # Verificar se o valor atual de 'doc' já é válido (não é "em breve")
             if current_doc and current_doc != "em breve":
@@ -76,7 +75,8 @@ def update_db_record(supabase: Client, doc_metadata: dict):
 
             # 2. Preparar os dados para a atualização
             update_data = {
-                'doc': doc_metadata.get('doc'), # A URL do arquivo
+                'doc': doc_metadata.get('doc'),
+                'alerted': current_alerted if current_alerted is not None else False  # Preserve existing value or default to False
             }
 
             logger.info(f"Dados a serem atualizados: {update_data}")
@@ -85,8 +85,8 @@ def update_db_record(supabase: Client, doc_metadata: dict):
             update_data = {k: v for k, v in update_data.items() if v is not None}
 
             if not update_data.get('doc'):
-                 logger.error(f"Erro: URL do documento ('doc') está faltando nos metadados para referencia '{target_referencia}'.")
-                 return False
+                logger.error(f"Erro: URL do documento ('doc') está faltando nos metadados para referencia '{target_referencia}'.")
+                return False
 
             # 3. Executar a atualização
             update_result = (
@@ -101,7 +101,6 @@ def update_db_record(supabase: Client, doc_metadata: dict):
             
             return True
         else:
-            # Registro não encontrado
             logger.warning(f"Registro com referencia '{target_referencia}' não encontrado no banco de dados. Nenhuma atualização realizada.")
             return True
 
@@ -264,7 +263,8 @@ def get_document_urls(driver):
                                 'referencia': referencia,
                                 'doc_url': doc_url,
                                 'doc_token': doc_token,
-                                'row_index': index
+                                'row_index': index,
+                                'user_id': None,  # Placeholder for user_id
                             })
                             logger.info(f"Documento encontrado: {acto} - {referencia}")
                         else:
@@ -284,7 +284,7 @@ def get_document_urls(driver):
         driver.save_screenshot("document_extraction_error.png")
         return []
 
-def download_document(driver, doc_info, max_retries=3):
+def download_document(supabase, driver, doc_info, max_retries=3):
     """
     Attempts to download document(s) from a notification.
     Supports multiple documents/attachments with adaptive handling based on page structure.
@@ -292,7 +292,7 @@ def download_document(driver, doc_info, max_retries=3):
     """
     origem = doc_info.get('origem', 'Desconhecido')
     logger.info(f"Attempting to download document(s) for: {doc_info.get('acto', 'N/A')} - {doc_info.get('referencia', 'N/A')} - Origin: {origem}")
-
+    logger.info(f"Supabase {supabase}")
     current_url = driver.current_url
     original_timeout_value = 30  # Default in seconds
     
@@ -473,6 +473,8 @@ def download_document(driver, doc_info, max_retries=3):
             logger.error(f"Could not navigate back to original page: {nav_error}")
                 
         # --- CONCLUDE AND RETURN ---
+        # --- CONCLUDE AND RETURN ---
+        # --- CONCLUDE AND RETURN ---
         if downloaded_documents:
             main_doc_result = downloaded_documents[0].copy()
             main_doc_result['all_documents'] = downloaded_documents
@@ -491,6 +493,10 @@ def download_document(driver, doc_info, max_retries=3):
                 'download_attempted': True,
                 'last_accessed': datetime.now().isoformat()
             }
+            error_msg = "é um teste maluco"
+            # Atualizar o status para 'success'
+            update_document_status(supabase, doc_info, 'success')
+
             logger.info(f"Successfully downloaded {len(downloaded_documents)} document(s) for {doc_info.get('referencia', 'N/A')}.")
             return main_doc_result
         else:
@@ -503,6 +509,9 @@ def download_document(driver, doc_info, max_retries=3):
                     'origem': origem, 'download_attempted': True, 'download_successful': False,
                     'last_accessed': datetime.now().isoformat()
                 }
+                # Atualizar o status para 'pending' para o fallback Mandatário
+                update_document_status(supabase, doc_info, 'pending', 'Fallback para URL do Mandatário')
+                
                 return {
                     'success': True, 'is_fallback': True, 'file_path': None, 'file_type': 'html_link',
                     'processo': doc_info['processo'], 'referencia': doc_info['referencia'],
@@ -512,8 +521,14 @@ def download_document(driver, doc_info, max_retries=3):
                     'doc_metadata': fallback_metadata
                 }
             else:
-                logger.error(f"No documents were successfully downloaded for {origem} ({doc_info.get('referencia', 'N/A')}) after {max_retries} attempts.")
-                return {'success': False, 'error_message': f"No documents downloaded for {origem} ({doc_info.get('referencia', 'N/A')}) after {max_retries} attempts"}
+                # Definir a mensagem de erro antes de usá-la
+                error_msg = f"No documents downloaded for {origem} ({doc_info.get('referencia', 'N/A')}) after {max_retries} attempts."
+                logger.error(error_msg)
+                
+                # Atualizar o status para 'error'
+                update_document_status(supabase, doc_info, 'error', error_msg)
+                
+                return {'success': False, 'error_message': error_msg}
     finally:
         if hasattr(driver, 'set_page_load_timeout'):
             try:
@@ -1316,11 +1331,13 @@ def document_manager(driver, supabase, user_id):
         logger.info(f"Foram encontrados {len(document_data)} documentos.")
             
         # Para cada documento, verificar se já existe e, caso contrário, processar
-        for doc_info in document_data:
-            logger.info(f"Processando documento: {doc_info['acto']} - {doc_info['referencia']}")
+        for doc_info_item  in document_data:
+            doc_info_item['user_id'] = user_id  # <<< CRITICAL: Add user_id HERE
+            logger.info(f"Processando documento: {doc_info_item['acto']} - {doc_info_item['referencia']}")
+
             
             # Verificar se o documento já existe no Supabase
-            referencia_sanitized = sanitize_filename(doc_info['referencia'])
+            referencia_sanitized = sanitize_filename(doc_info_item['referencia'])
             document_exists = False
             existing_doc_url = None
             
@@ -1336,16 +1353,16 @@ def document_manager(driver, supabase, user_id):
                     existing_doc_url = supabase.storage.from_(SUPABASE_BUCKET_NAME).get_public_url(
                         f"{referencia_sanitized}/{file_name}"
                     )
-                    logger.info(f"Documento com referência {doc_info['referencia']} já existe no Supabase.")
+                    logger.info(f"Documento com referência {doc_info_item['referencia']} já existe no Supabase.")
             except Exception as e:
-                logger.warning(f"Erro ao verificar existência do documento {doc_info['referencia']}: {str(e)}")
+                logger.warning(f"Erro ao verificar existência do documento {doc_info_item['referencia']}: {str(e)}")
             
             if document_exists and existing_doc_url:
                 logger.info(f"Usando URL do documento existente: {existing_doc_url}")
                 
                 # Atualizar o campo doc para esta notificação
                 doc_metadata = {
-                    'referencia': doc_info['referencia'],
+                    'referencia': doc_info_item['referencia'],
                     'doc': existing_doc_url,
                     'document_stored': True,
                     'document_type': 'shared',
@@ -1358,9 +1375,9 @@ def document_manager(driver, supabase, user_id):
                 
                 # Log para o usuário
                 print(f"\nURL do documento atualizada com link compartilhado:")
-                print(f"Processo: {doc_info['processo']}")
-                print(f"Referência: {doc_info['referencia']}")
-                print(f"Ato: {doc_info['acto']}")
+                print(f"Processo: {doc_info_item['processo']}")
+                print(f"Referência: {doc_info_item['referencia']}")
+                print(f"Ato: {doc_info_item['acto']}")
                 print(f"URL compartilhada: {existing_doc_url}")
                 print("-" * 50)
                 
@@ -1368,7 +1385,7 @@ def document_manager(driver, supabase, user_id):
             
             # Se chegou aqui, o documento não existe e precisa ser processado
             # Baixar o documento
-            download_result = download_document(driver, doc_info)
+            download_result = download_document(supabase, driver, doc_info_item)
             
             if download_result['success']:
                 logger.info(f"Documento(s) baixado(s) com sucesso")
@@ -1376,7 +1393,7 @@ def document_manager(driver, supabase, user_id):
                 # Verificar se é um caso de múltiplos documentos
                 if download_result.get('multi_document', False):
                     # Upload de múltiplos documentos, com opção de mesclar PDFs
-                    upload_result = upload_multiple_documents(download_result, doc_info, user_id, merge_pdfs=True)
+                    upload_result = upload_multiple_documents(download_result, doc_info_item, user_id, merge_pdfs=True)
                     
                     if upload_result['success']:
                         # Verificar se houve mesclagem de PDF
@@ -1385,9 +1402,9 @@ def document_manager(driver, supabase, user_id):
                             
                             # Para o teste, mostrar o resultado
                             print(f"\nMúltiplos PDFs mesclados com sucesso:")
-                            print(f"Processo: {doc_info['processo']}")
-                            print(f"Referência: {doc_info['referencia']}")
-                            print(f"Ato: {doc_info['acto']}")
+                            print(f"Processo: {doc_info_item['processo']}")
+                            print(f"Referência: {doc_info_item['referencia']}")
+                            print(f"Ato: {doc_info_item['acto']}")
                             print(f"Documentos mesclados: {upload_result['doc_metadata']['merged_from']}")
                             print(f"URL do PDF mesclado: {upload_result['file_url']}")
                             
@@ -1401,9 +1418,9 @@ def document_manager(driver, supabase, user_id):
                             
                             # Para o teste, mostrar o resultado
                             print(f"\nMúltiplos documentos processados com sucesso:")
-                            print(f"Processo: {doc_info['processo']}")
-                            print(f"Referência: {doc_info['referencia']}")
-                            print(f"Ato: {doc_info['acto']}")
+                            print(f"Processo: {doc_info_item['processo']}")
+                            print(f"Referência: {doc_info_item['referencia']}")
+                            print(f"Ato: {doc_info_item['acto']}")
                             print(f"Total de documentos: {upload_result['doc_metadata'].get('document_count', 0)}/{upload_result['doc_metadata'].get('total_documents', 0)}")
                             print(f"URL principal: {upload_result['file_url']}")
                             print("-" * 50)
@@ -1414,7 +1431,7 @@ def document_manager(driver, supabase, user_id):
                     upload_result = upload_to_supabase(
                         download_result['file_path'],
                         download_result['file_type'],
-                        doc_info,
+                        doc_info_item,
                         user_id
                     )
                     
@@ -1423,9 +1440,9 @@ def document_manager(driver, supabase, user_id):
                         
                         # Para o teste, mostrar o resultado
                         print(f"\nDocumento processado com sucesso:")
-                        print(f"Processo: {doc_info['processo']}")
-                        print(f"Referência: {doc_info['referencia']}")
-                        print(f"Ato: {doc_info['acto']}")
+                        print(f"Processo: {doc_info_item['processo']}")
+                        print(f"Referência: {doc_info_item['referencia']}")
+                        print(f"Ato: {doc_info_item['acto']}")
                         print(f"URL do documento: {upload_result['file_url']}")
                         print("-" * 50)
                     else:
@@ -1439,3 +1456,52 @@ def document_manager(driver, supabase, user_id):
         logger.error(f"Erro durante a execução do script: {str(e)}")
     finally:
         logger.info("Processo concluído")
+
+
+def update_document_status(supabase, doc_info, status, error_message=None):
+    """Atualiza o status do documento no banco de dados."""
+    try:
+        referencia = doc_info.get('referencia')
+        user_id = doc_info.get('user_id')
+        logger.info(f"Atualizando user_id {user_id} para referência '{referencia}'")
+        logger.info(f"Atualizando status do documento para {status} para referência '{referencia}'")
+        
+        if not referencia or not user_id:
+            logger.error("Erro: Referência ou user_id ausente. Impossível atualizar status.")
+            return False
+        
+        # Buscar o registro e incluir o campo alerted
+        result = (
+            supabase.table('api_processo')
+            .select('id, alerted')
+            .eq('referencia', referencia)
+            .eq('user_id', user_id)
+            .limit(1)
+            .execute()
+        )
+        
+        if result.data:
+            record_id = result.data[0]['id']
+            current_alerted = result.data[0].get('alerted', False)
+            
+            # Preparar dados para atualização
+            update_data = {
+                'document_status': status,
+                'alerted': current_alerted if current_alerted is not None else False  # Preserve existing value
+            }
+            
+            if error_message:
+                update_data['document_error_message'] = error_message
+            
+            # Executar a atualização
+            supabase.table('api_processo').update(update_data).eq('id', record_id).execute()
+            
+            logger.info(f"Status do documento atualizado para {status} para referência '{referencia}'")
+            return True
+        else:
+            logger.warning(f"Registro não encontrado para referência '{referencia}'. Status não atualizado.")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status do documento: {str(e)}")
+        return False

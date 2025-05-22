@@ -14,7 +14,19 @@ class Processo(models.Model):
     especie = models.CharField(max_length=100)
     referencia = models.CharField(max_length=100)
     advogado = models.CharField(max_length=100, default="Geral")
-    
+    # Novo campo para status do documento
+    DOCUMENT_STATUS_CHOICES = (
+        ('pending', 'Pendente'),
+        ('success', 'Sucesso'),
+        ('error', 'Erro'),
+    )
+    document_status = models.CharField(
+        max_length=20, 
+        choices=DOCUMENT_STATUS_CHOICES, 
+        default='pending'
+    )
+    document_error_message = models.TextField(blank=True, null=True)  # Mensagem de erro, se houver
+    alerted = models.BooleanField(default=False)  # Flag to indicate if the user has been alerted
     # New fields for document management
     document_stored = models.BooleanField(default=False, null=True)  # Flag to indicate if document was successfully stored
     document_type = models.CharField(max_length=50, blank=True, null=True)  # PDF, HTML, etc.
@@ -53,3 +65,29 @@ class CitiusAccountEmail(models.Model):
         
     def __str__(self):
         return f"{self.email} ({self.account.username})"
+    
+# Modelo para o status da aplicação
+class SystemStatus(models.Model):
+    STATUS_CHOICES = (
+        ('active', 'Ativo'),
+        ('inactive', 'Inativo'),
+    )
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    last_check = models.DateTimeField(auto_now=True)
+    message = models.TextField(blank=True, null=True)  # Para armazenar mensagens sobre o estado
+    
+    # Metadados sobre checks específicos
+    accounts_status = models.JSONField(default=dict, blank=True, null=True)  # Status das contas Citius
+    document_errors = models.IntegerField(default=0)  # Contador de erros de documento
+    
+    class Meta:
+        verbose_name = "Status do Sistema"
+        verbose_name_plural = "Status do Sistema"
+    
+    def __str__(self):
+        return f"Sistema {self.get_status_display()} - {self.last_check}"
+
+
+    
+    

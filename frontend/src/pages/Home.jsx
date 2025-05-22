@@ -12,12 +12,15 @@ import "../styles/Home.css";
 import Header from "../components/Header";
 import api from "../api";
 import NotificationsComponent from "../components/NotificationsReload";
+import StatusIndicator from "../components/StatusIndicator"; // Importar o componente de status
+
 
 const LegalNotificationsDashboard = () => {
   const [notificacoes, setNotificacoes] = useState([]);
   const [filteredNotificacoes, setFilteredNotificacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
   const [filters, setFilters] = useState({
     advogado: "",
     origem: "",
@@ -34,6 +37,7 @@ const LegalNotificationsDashboard = () => {
   // Configuração de colunas - Added documento column as first column
   const allColumns = [
     { id: "documento", label: "Documento", visible: true }, // Document column first
+    { id: "document_status", label: "Status Doc", visible: true }, // Added document status column
     { id: "advogado", label: "Responsável", visible: true },
     { id: "origem", label: "Origem", visible: true },
     { id: "data", label: "Data Elaboração", visible: true },
@@ -56,6 +60,7 @@ const LegalNotificationsDashboard = () => {
     api
       .get("/api/processos/")
       .then((res) => {
+        console.log("Raw API data:", res.data); // <<< ADD THIS LINE
         const sortedData = [...res.data].sort((a, b) => {
           const dateA = parseDate(a.data);
           const dateB = parseDate(b.data);
@@ -71,22 +76,24 @@ const LegalNotificationsDashboard = () => {
       });
   };
 
+
+
   // Parse date in "DD-MM-YYYY" format to Date object
   // Updated parseDate function for YYYY-MM-DD format
   const parseDate = (dateStr) => {
     if (!dateStr) return new Date(0); // Handle empty dates
-    
+
     // Check if the date is in YYYY-MM-DD format
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return new Date(dateStr);
     }
-    
+
     // Handle DD-MM-YYYY format if present
     if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
       const [day, month, year] = dateStr.split("-");
       return new Date(`${year}-${month}-${day}`);
     }
-    
+
     // Fallback: try to parse the date as is
     return new Date(dateStr);
   };
@@ -132,6 +139,7 @@ const LegalNotificationsDashboard = () => {
   const especies = getUniqueValues("especie");
   const unidades = getUniqueValues("unidade");
   const doc = getUniqueValues("doc");
+  const docStatus = getUniqueValues("document_status");
 
   // Safely handle date sorting
   const datas = getUniqueValues("data").sort((a, b) => {
@@ -176,7 +184,7 @@ const LegalNotificationsDashboard = () => {
     results = [...results].sort((a, b) => {
       const dateA = parseDate(a.data);
       const dateB = parseDate(b.data);
-      return dateB - dateA; 
+      return dateB - dateA;
     });
 
     setFilteredNotificacoes(results);
@@ -240,6 +248,30 @@ const LegalNotificationsDashboard = () => {
       );
     }
   };
+  // Function to render document status with color coding
+  const renderDocumentStatus = (status) => {
+    console.log("Document status:", status); // Debugging line
+    if (!status || status === "pending") {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          Pendente
+        </span>
+      );
+    } else if (status === "success") {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          Sucesso
+        </span>
+      );
+    } else if (status === "error") {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          Erro
+        </span>
+      );
+    }
+    return status;
+  };
 
   // Save column configuration
   const saveColumnConfiguration = () => {
@@ -251,7 +283,7 @@ const LegalNotificationsDashboard = () => {
   // Function to handle document click and open PDF
   const handleDocumentClick = (url) => {
     if (!url) return;
-    
+
     // Open the document in a new tab/window
     window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -292,9 +324,11 @@ const LegalNotificationsDashboard = () => {
           <h1 className="text-2xl text-white font-bold">
             Notificações Judiciais
           </h1>
-          <div className="flex items-center">
-            <NotificationsComponent onRefreshComplete={fetchProcessos} />
+          <div className="flex items-center space-x-3">
+            <StatusIndicator />
+            <NotificationsComponent />
           </div>
+          
         </header>
 
         {/* Stats Cards */}
@@ -394,6 +428,7 @@ const LegalNotificationsDashboard = () => {
                 { label: "Tribunal", field: "tribunal", options: tribunais },
                 { label: "Espécie", field: "especie", options: especies },
                 { label: "Unidade", field: "unidade", options: unidades },
+                { label: "Status Doc", field: "document_status", options: docStatus }
               ].map((filter, idx) => (
                 <div key={idx} className="mb-2">
                   <label
@@ -553,9 +588,11 @@ const LegalNotificationsDashboard = () => {
                               key={colIdx}
                               className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                             >
-                              {column.id === "documento" 
+                              {column.id === "documento"
                                 ? renderDocumentCell(item.doc)
-                                : item[column.id] || "-"}
+                                : column.id === "document_status"
+                                  ? renderDocumentStatus(item.document_status)
+                                  : item[column.id] || "-"}
                             </td>
                           ))}
                       </tr>

@@ -16,11 +16,11 @@ import tempfile
 import os
 from rest_framework.decorators import api_view, permission_classes
 from .models import CitiusAccount
-from .serializers import CitiusAccountSerializer, PasswordChangeSerializer
+from .serializers import CitiusAccountSerializer, PasswordChangeSerializer, SystemStatusSerializer
 from .tasks import scheduled_citius_scrape, test_citius_account
 from django.http import HttpResponse
 from .whisper import audio_to_text
-from .models import CitiusAccountEmail
+from .models import CitiusAccountEmail, SystemStatus
 from .serializers import CitiusAccountEmailSerializer
 from rest_framework import status
 from .toggl_notion_utils import (
@@ -40,6 +40,8 @@ import json
 from pathlib import Path
 from django.conf import settings
 from .toggl_notion_utils import get_lastupdate
+from datetime import timedelta
+from django.utils import timezone
 
 
 logger = logging.getLogger('citius-app')
@@ -738,3 +740,67 @@ def change_password(request):
         return Response({"message": "Senha alterada com sucesso."}, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_system_status(request):
+    """
+    Verifica o status do sistema e retorna um resumo
+    """
+    try:
+        # Obter ou criar um objeto de status
+        status_obj, created = SystemStatus.objects.get_or_create(id=1)
+        
+        # Verificar status das contas Citius (30 minutos)
+        accounts = CitiusAccount.objects.filter(is_active=True)
+        threshold_time = timezone.now() - timedelta(minutes=30)
+        
+        accounts_status = {}
+        all_accounts_active = True
+        
+        for account in accounts:
+            account_active = account.last_used and account.last_used > threshold_time
+            accounts_status[account.username] = {
+                'active': account_active,
+                'last_used': account.last_used.isoformat() if account.last_used else None,
+                'advogado': account.advogado
+            }
+            
+            if not account_active:
+                all_accounts_active = False
+        
+        # Verificar erros de documento
+        document_errors = Processo.objects.filter(document_status='error').count()
+        
+        # Determinar o status geral
+        if all_accounts_active and document_errors == 0:
+            status_obj.status = 'active'
+            status_obj.message = 'Sistema funcionando normalmente'
+        else:
+            status_obj.status = 'inactive'
+            
+            # Compor mensagem de erro
+            error_messages = []
+            if not all_accounts_active:
+                inactive_accounts = [acc for acc, data in accounts_status.items() if not data['active']]
+                error_messages.append(f"Contas inativas: {', '.join(inactive_accounts)}")
+            
+            if document_errors > 0:
+                error_messages.append(f"Erros em documentos: {document_errors}")
+                
+            status_obj.message = ". ".join(error_messages)
+        
+        # Atualizar metadados
+        status_obj.accounts_status = accounts_status
+        status_obj.document_errors = document_errors
+        status_obj.save()
+        
+        # Serializar e retornar
+        serializer = SystemStatusSerializer(status_obj)
+        return Response(serializer.data)
+    
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f'Erro ao verificar status: {str(e)}'
+        }, status=500)

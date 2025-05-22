@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Processo, CitiusAccount, CitiusAccountEmail
+from .models import Processo, CitiusAccount, CitiusAccountEmail, SystemStatus
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -17,8 +17,14 @@ class ProcessoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Processo
         fields  = ["id", "origem", "data", "acto","doc", "tribunal", "unidade", 
-                   "processo", "especie", "referencia", "advogado", "created_at"]
+                   "processo", "especie", "referencia", "advogado", "created_at","document_status","alerted"]
         read_only_fields = ["user", "created_at"]  # Prevent clients from directly setting these fields
+
+class SystemStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemStatus
+        fields = ['id', 'status', 'last_check', 'message', 'accounts_status', 'document_errors']
+        read_only_fields = ['last_check']
 
 # Serializer para os emails adicionais
 class CitiusAccountEmailSerializer(serializers.ModelSerializer):
